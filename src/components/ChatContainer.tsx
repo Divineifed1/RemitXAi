@@ -11,9 +11,11 @@ interface ChatContainerProps {
   messages: Message[];
   isDarkMode: boolean;
   isTyping: boolean;
+  onConfirmPayment?: () => void;
+  onCancelPayment?: () => void;
 }
 
-export function ChatContainer({ messages, isDarkMode, isTyping }: ChatContainerProps) {
+export function ChatContainer({ messages, isDarkMode, isTyping, onConfirmPayment, onCancelPayment }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,7 +69,9 @@ export function ChatContainer({ messages, isDarkMode, isTyping }: ChatContainerP
           <ChatMessage 
             key={message.id} 
             message={message} 
-            isDarkMode={isDarkMode} 
+            isDarkMode={isDarkMode}
+            onConfirmPayment={onConfirmPayment}
+            onCancelPayment={onCancelPayment}
           />
         ))}
 

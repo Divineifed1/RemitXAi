@@ -64,7 +64,13 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     recognitionInstance.onend = () => {
       setIsListening(false);
-      if (voiceState === 'listening') {
+      const currentTranscript = transcript;
+      if (currentTranscript.trim().length > 0) {
+        setVoiceState('processing');
+        setTimeout(() => {
+          setVoiceState('idle');
+        }, 1000);
+      } else {
         setVoiceState('idle');
       }
     };

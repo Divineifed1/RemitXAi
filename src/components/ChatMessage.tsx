@@ -5,13 +5,16 @@ import { Bot, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 import { TransactionCard } from './TransactionCard';
+import { ConfirmationCard } from './ConfirmationCard';
 
 interface ChatMessageProps {
   message: Message;
   isDarkMode: boolean;
+  onConfirmPayment?: () => void;
+  onCancelPayment?: () => void;
 }
 
-export function ChatMessage({ message, isDarkMode }: ChatMessageProps) {
+export function ChatMessage({ message, isDarkMode, onConfirmPayment, onCancelPayment }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   return (
@@ -88,6 +91,18 @@ export function ChatMessage({ message, isDarkMode }: ChatMessageProps) {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {message.type === 'confirmation' && message.confirmationData && (
+          <ConfirmationCard
+            recipientName={message.confirmationData.recipientName}
+            walletAddress={message.confirmationData.walletAddress}
+            amount={message.confirmationData.amount}
+            currency={message.confirmationData.currency}
+            onConfirm={onConfirmPayment || (() => {})}
+            onCancel={onCancelPayment || (() => {})}
+            isDarkMode={isDarkMode}
+          />
         )}
       </div>
 
