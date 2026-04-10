@@ -27,7 +27,7 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
     >
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3 ml-0">
-          <div className="relative w-14 h-14 shrink-0">
+          <div className="relative w-20 h-20 shrink-0">
             <Image
               src="/ChatGPT Image Apr 7, 2026, 11_29_22 AM.png"
               alt="RemitX AI Logo"

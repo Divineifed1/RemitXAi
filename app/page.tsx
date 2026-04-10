@@ -202,7 +202,7 @@ export default function Home() {
         
         setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
       }
-    }, 15000);
+    }, 120000);
     
     return () => {
       if (alertIntervalRef.current) {
