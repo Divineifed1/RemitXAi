@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Wallet, ArrowUpRight, ArrowDownLeft, TrendingUp, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { WalletBalance } from '@/components/WalletBalance';
 import { cn } from '@/lib/utils';
 import type { Transaction, ExchangeRate } from '@/types';
 
@@ -17,19 +18,22 @@ const EXCHANGE_RATES: ExchangeRate[] = [
   { from: 'USD', to: 'XLM', rate: 0.0035, symbol: 'XLM' },
 ];
 
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1', name: 'Sarah', amount: 50, currency: '$', status: 'received', type: 'received', timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-  { id: '2', name: 'John', amount: 25, currency: '$', status: 'sent', type: 'sent', timestamp: new Date(Date.now() - 1000 * 60 * 30) },
-  { id: '3', name: 'Divine', amount: 100, currency: '$', status: 'sent', type: 'sent', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2) },
-  { id: '4', name: 'David', amount: 75, currency: '$', status: 'received', type: 'received', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24) },
-  { id: '5', name: 'Exchange', amount: 50, currency: '$', status: 'received', type: 'received', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48) },
-];
+interface DbTransaction {
+  id: number;
+  recipient: string;
+  amount: number;
+  type: 'send' | 'receive';
+  created_at: string;
+}
 
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [balance, setBalance] = useState(250);
+  const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalReceived, setTotalReceived] = useState(0);
+  const [totalSent, setTotalSent] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const toggleTheme = useCallback(() => {
     setIsDarkMode(prev => !prev);
@@ -39,32 +43,58 @@ export default function Dashboard() {
     setVoiceEnabled(prev => !prev);
   }, []);
 
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [walletRes, txRes] = await Promise.all([
+        fetch('/api/wallet'),
+        fetch('/api/transactions'),
+      ]);
+      
+      const walletData = await walletRes.json();
+      const txData = await txRes.json();
+      
+      setBalance(walletData.balance);
+      
+      if (txData.transactions) {
+        const formatted: Transaction[] = txData.transactions.map((t: DbTransaction) => ({
+          id: String(t.id),
+          name: t.recipient,
+          amount: t.amount,
+          currency: '$',
+          status: t.type === 'receive' ? 'received' : 'sent',
+          type: t.type === 'receive' ? 'received' : 'sent',
+          timestamp: new Date(t.created_at),
+        }));
+        setTransactions(formatted);
+        
+        const received = txData.transactions
+          .filter((t: DbTransaction) => t.type === 'receive')
+          .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
+        const sent = txData.transactions
+          .filter((t: DbTransaction) => t.type === 'send')
+          .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
+        setTotalReceived(received);
+        setTotalSent(sent);
+      }
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
     if (savedTheme !== null) {
       setIsDarkMode(savedTheme === 'true');
     }
 
-    const savedBalance = localStorage.getItem('remitx-balance');
-    if (savedBalance) {
-      setBalance(parseFloat(savedBalance));
-    }
-
-    const savedTransactions = localStorage.getItem('remitx-transactions');
-    if (savedTransactions) {
-      try {
-        const parsed = JSON.parse(savedTransactions);
-        setTransactions(parsed.map((t: Transaction) => ({
-          ...t,
-          timestamp: new Date(t.timestamp)
-        })));
-      } catch {
-        setTransactions(MOCK_TRANSACTIONS);
-      }
-    } else {
-      setTransactions(MOCK_TRANSACTIONS);
-    }
-  }, []);
+    fetchData();
+    
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const formatTime = (date: Date) => {
     const now = new Date();
@@ -102,18 +132,18 @@ export default function Dashboard() {
           onToggleVoice={toggleVoice}
         />
 
-        <div className="fixed top-20 left-6 z-30">
+        <div className="fixed top-24 left-6 z-30">
           <Link href="/">
             <motion.div
               whileHover={{ x: 4 }}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium mt-5 transition-all mb-4',
                 isDarkMode
                   ? 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                   : 'bg-slate-100 text-slate-600 hover:text-[#234A80] hover:bg-[#BCC3EE]/20'
               )}
             >
-              <ArrowRight className="w-4 h-4 rotate-180" />
+              <ArrowRight className="w-4 h-4 rotate-180 " />
               Back to Chat
             </motion.div>
           </Link>
@@ -166,9 +196,24 @@ export default function Dashboard() {
                     'text-3xl font-bold',
                     isDarkMode ? 'text-white' : 'text-slate-900'
                   )}>
-                    ${balance.toFixed(2)}
+                    {isLoading ? (
+                      <span className="animate-pulse">...</span>
+                    ) : (
+                      `$${balance.toFixed(2)}`
+                    )}
                   </h2>
                 </div>
+                <button
+                  onClick={fetchData}
+                  className={cn(
+                    'ml-auto px-3 py-1 rounded-lg text-xs font-medium transition-colors',
+                    isDarkMode
+                      ? 'bg-white/10 text-slate-400 hover:text-white hover:bg-white/20'
+                      : 'bg-slate-100 text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  Refresh
+                </button>
               </div>
               <div className="flex gap-4">
                 <div className={cn(
@@ -185,7 +230,7 @@ export default function Dashboard() {
                     'text-lg font-semibold',
                     isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
                   )}>
-                    +$125
+                    +${totalReceived.toFixed(2)}
                   </p>
                 </div>
                 <div className={cn(
@@ -202,7 +247,7 @@ export default function Dashboard() {
                     'text-lg font-semibold',
                     isDarkMode ? 'text-red-400' : 'text-red-600'
                   )}>
-                    -$125
+                    -${totalSent.toFixed(2)}
                   </p>
                 </div>
               </div>

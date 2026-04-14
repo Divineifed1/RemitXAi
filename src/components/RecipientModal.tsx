@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Wallet } from 'lucide-react';
+import { X, User, Wallet, Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RecipientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, walletAddress: string) => void;
+  onSave: (name: string, walletAddress: string) => Promise<void>;
   isDarkMode: boolean;
   defaultName?: string;
   defaultWallet?: string;
@@ -24,13 +24,21 @@ export function RecipientModal({
 }: RecipientModalProps) {
   const [name, setName] = useState(defaultName);
   const [walletAddress, setWalletAddress] = useState(defaultWallet);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim() && walletAddress.trim()) {
-      onSave(name.trim(), walletAddress.trim());
-      setName('');
-      setWalletAddress('');
+      setIsSaving(true);
+      try {
+        await onSave(name.trim(), walletAddress.trim());
+        setName('');
+        setWalletAddress('');
+      } catch (error) {
+        console.error('Failed to save:', error);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -136,13 +144,23 @@ export function RecipientModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!name.trim() || !walletAddress.trim()}
+                  disabled={!name.trim() || !walletAddress.trim() || isSaving}
                   className={cn(
                     'flex-1 py-3 rounded-xl font-medium transition-all gradient-bg text-white',
-                    (!name.trim() || !walletAddress.trim()) && 'opacity-50 cursor-not-allowed'
+                    (!name.trim() || !walletAddress.trim() || isSaving) && 'opacity-50 cursor-not-allowed'
                   )}
                 >
-                  Save Recipient
+                  {isSaving ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <Check className="w-4 h-4" />
+                      Save Recipient
+                    </span>
+                  )}
                 </button>
               </div>
             </form>

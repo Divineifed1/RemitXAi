@@ -11,6 +11,7 @@ import { QuickActionButtons } from '@/components/QuickActionButtons';
 import { RecipientModal } from '@/components/RecipientModal';
 import { Toast } from '@/components/Toast';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
+import { useWallet } from '@/context/WalletContext';
 import type { Message, IntentResult, TransactionData, ConversionData, Recipient, ChatState, ConfirmationData, Alert, Transaction } from '@/types';
 
 const EXCHANGE_RATES: Record<string, number> = {
@@ -102,11 +103,12 @@ export default function Home() {
   } | null>(null);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [modalDefaults, setModalDefaults] = useState({ name: '', wallet: '' });
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]); // No notifications shown
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
   const { speak } = useSpeechSynthesis();
+  const { sendPayment: sendPaymentToBackend, addFunds, refreshBalance } = useWallet();
   const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -159,10 +161,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    alertIntervalRef.current = setInterval(() => {
+    alertIntervalRef.current = setInterval(async () => {
       if (Math.random() > 0.7) {
         const sender = SAMPLE_SENDERS[Math.floor(Math.random() * SAMPLE_SENDERS.length)];
         const amount = Math.floor(Math.random() * 100) + 10;
+        
+        try {
+          await addFunds(amount, `Received from ${sender}`);
+        } catch (error) {
+          console.error('Failed to add incoming funds:', error);
+        }
         
         const newAlert: Alert = {
           id: generateId(),
@@ -174,33 +182,6 @@ export default function Home() {
         };
         
         setAlerts(prev => [...prev, newAlert]);
-        
-        const alertMessage: Message = {
-          id: generateId(),
-          role: 'ai',
-          content: `You just received $${amount} from ${sender}!`,
-          timestamp: new Date(),
-          type: 'alert',
-          alertData: newAlert,
-        };
-        
-        setMessages(prev => [...prev, alertMessage]);
-        
-        if (voiceEnabled) {
-          speak(`You just received $${amount} from ${sender}`);
-        }
-        
-        const newTransaction: Transaction = {
-          id: generateId(),
-          name: sender,
-          amount,
-          currency: '$',
-          status: 'received',
-          type: 'received',
-          timestamp: new Date(),
-        };
-        
-        setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
       }
     }, 120000);
     
@@ -209,7 +190,7 @@ export default function Home() {
         clearInterval(alertIntervalRef.current);
       }
     };
-  }, [voiceEnabled, speak]);
+  }, [addFunds]);
 
   const dismissAlert = useCallback((id: string) => {
     setAlerts(prev => prev.map(alert => 
@@ -221,16 +202,34 @@ export default function Home() {
     return recipients.find(r => r.name.toLowerCase() === name.toLowerCase());
   };
 
-  const addRecipient = useCallback((name: string, walletAddress: string) => {
-    const newRecipient: Recipient = {
-      id: generateId(),
-      name,
-      walletAddress,
-    };
-    const updatedRecipients = [...recipients, newRecipient];
-    setRecipients(updatedRecipients);
-    localStorage.setItem('remitx-recipients', JSON.stringify(updatedRecipients));
-  }, [recipients]);
+  const addRecipient = useCallback(async (name: string, walletAddress: string) => {
+    try {
+      const response = await fetch('/api/recipients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, wallet: walletAddress }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        const newRecipient: Recipient = {
+          id: generateId(),
+          name,
+          walletAddress,
+        };
+        const updatedRecipients = [...recipients, newRecipient];
+        setRecipients(updatedRecipients);
+        localStorage.setItem('remitx-recipients', JSON.stringify(updatedRecipients));
+        
+        if (data.balance) {
+          await refreshBalance();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add recipient to backend:', error);
+    }
+  }, [recipients, refreshBalance]);
 
   const toggleTheme = useCallback(() => {
     setIsDarkMode(prev => !prev);
@@ -267,7 +266,7 @@ export default function Home() {
     }
   }, [voiceEnabled, speak]);
 
-  const handleConfirmPayment = useCallback(() => {
+  const handleConfirmPayment = useCallback(async () => {
     if (!pendingTransaction) return;
     
     const { recipientName, amount } = pendingTransaction;
@@ -281,57 +280,82 @@ export default function Home() {
     
     setIsTyping(true);
     
-    setTimeout(() => {
-      const transactionData: TransactionData = {
-        recipient: recipientName,
-        amount: amount,
-        currency: '$',
-        status: 'success',
-        type: 'sent',
-      };
+    try {
+      const result = await sendPaymentToBackend(recipientName, amount);
       
-      const response: Message = {
+      if (result.success) {
+        const transactionData: TransactionData = {
+          recipient: recipientName,
+          amount: amount,
+          currency: '$',
+          status: 'success',
+          type: 'sent',
+        };
+        
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: `Successfully sent $${amount} to ${recipientName}!`,
+          timestamp: new Date(),
+          type: 'transaction',
+          transactionData,
+        };
+        
+        setMessages(prev => [...prev, response]);
+        
+        const newTransaction: Transaction = {
+          id: generateId(),
+          name: recipientName,
+          amount: amount,
+          currency: '$',
+          status: 'sent',
+          type: 'sent',
+          timestamp: new Date(),
+        };
+        
+        setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
+        
+        const newUsageCount = { ...recipientUsageCount };
+        newUsageCount[recipientName.toLowerCase()] = (newUsageCount[recipientName.toLowerCase()] || 0) + 1;
+        setRecipientUsageCount(newUsageCount);
+        
+        if (newUsageCount[recipientName.toLowerCase()] === 3 && !insightTriggered) {
+          setInsightTriggered(true);
+          setTimeout(() => {
+            triggerInsight('frequent', `You've sent money to ${recipientName} multiple times. Would you like to automate this as a weekly transfer?`);
+          }, 2000);
+        }
+        
+        if (voiceEnabled) {
+          speak(response.content);
+        }
+      } else {
+        const errorMessage: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: result.message || 'Payment failed. Please try again.',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        
+        if (voiceEnabled) {
+          speak(result.message || 'Payment failed');
+        }
+      }
+    } catch (error) {
+      const errorMessage: Message = {
         id: generateId(),
         role: 'ai',
-        content: `Successfully sent $${amount} to ${recipientName}!`,
+        content: 'An error occurred while processing your payment.',
         timestamp: new Date(),
-        type: 'transaction',
-        transactionData,
       };
-      
-      setMessages(prev => [...prev, response]);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
       setPendingTransaction(null);
       setChatState('idle');
-      
-      const newTransaction: Transaction = {
-        id: generateId(),
-        name: recipientName,
-        amount: amount,
-        currency: '$',
-        status: 'sent',
-        type: 'sent',
-        timestamp: new Date(),
-      };
-      
-      setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
-      
-      const newUsageCount = { ...recipientUsageCount };
-      newUsageCount[recipientName.toLowerCase()] = (newUsageCount[recipientName.toLowerCase()] || 0) + 1;
-      setRecipientUsageCount(newUsageCount);
-      
-      if (newUsageCount[recipientName.toLowerCase()] === 3 && !insightTriggered) {
-        setInsightTriggered(true);
-        setTimeout(() => {
-          triggerInsight('frequent', `You've sent money to ${recipientName} multiple times. Would you like to automate this as a weekly transfer?`);
-        }, 2000);
-      }
-      
-      if (voiceEnabled) {
-        speak(response.content);
-      }
-    }, 1000);
-  }, [pendingTransaction, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight]);
+    }
+  }, [pendingTransaction, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight, sendPaymentToBackend]);
 
   const handleCancelPayment = useCallback(() => {
     if (!pendingTransaction) return;

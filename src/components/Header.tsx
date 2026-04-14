@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Volume2, VolumeX, Sun, Moon, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WalletBalance } from './WalletBalance';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -49,7 +50,9 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <WalletBalance isDarkMode={isDarkMode} />
+
           <Link href="/dashboard">
             <motion.button
               whileHover={{ scale: 1.05 }}

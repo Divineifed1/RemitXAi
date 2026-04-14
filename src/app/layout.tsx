@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { WalletProvider } from "@/context/WalletContext";
 
 export const metadata: Metadata = {
   title: "RemitX AI - AI-Powered Cross-Border Payments",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-screen flex flex-col">{children}</body>
+      <WalletProvider>
+        <body className="min-h-screen flex flex-col">{children}</body>
+      </WalletProvider>
     </html>
   );
 }
