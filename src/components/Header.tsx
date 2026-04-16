@@ -27,15 +27,14 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
       )}
     >
       <div className="max-w-4xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3 ml-0">
-          <div className="relative w-20 h-20 shrink-0">
-            <Image
-              src="/ChatGPT Image Apr 7, 2026, 11_29_22 AM.png"
-              alt="RemitX AI Logo"
-              fill
-              className="object-contain rounded-xl"
-            />
-          </div>
+        <div className="flex items-center gap-3 ml-0 rounded-lg">
+          <Image
+            src="/Glow.png"
+            alt="RemitX AI Logo"
+            width={50}
+            height={100}
+            unoptimized
+          />
           <div>
             <h1 className="text-xl font-bold tracking-tight">
               <span className="gradient-text">RemitX</span>
@@ -51,7 +50,7 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
         </div>
 
         <div className="flex items-center gap-3">
-          <WalletBalance isDarkMode={isDarkMode} />
+          <WalletBalance isDarkMode={isDarkMode} showAddress address="GCFX7FJHBM4CYGERTUQJQD5EKQ6CWG6CXKNR6FWKH3VQNR7L3XJSC6OQW" />
 
           <Link href="/dashboard">
             <motion.button

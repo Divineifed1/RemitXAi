@@ -10,12 +10,12 @@ import { WalletBalance } from '@/components/WalletBalance';
 import { cn } from '@/lib/utils';
 import type { Transaction, ExchangeRate } from '@/types';
 
-const EXCHANGE_RATES: ExchangeRate[] = [
-  { from: 'USD', to: 'NGN', rate: 1400, symbol: '₦' },
-  { from: 'EUR', to: 'NGN', rate: 1520, symbol: '₦' },
-  { from: 'GBP', to: 'NGN', rate: 1780, symbol: '₦' },
-  { from: 'XLM', to: 'NGN', rate: 400, symbol: '₦' },
-  { from: 'USD', to: 'XLM', rate: 0.0035, symbol: 'XLM' },
+const DISPLAY_RATES = [
+  { from: 'USD', to: 'NGN', symbol: '₦' },
+  { from: 'EUR', to: 'NGN', symbol: '₦' },
+  { from: 'GBP', to: 'NGN', symbol: '₦' },
+  { from: 'XLM', to: 'NGN', symbol: '₦' },
+  { from: 'USD', to: 'XLM', symbol: 'XLM' },
 ];
 
 interface DbTransaction {
@@ -33,7 +33,20 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalSent, setTotalSent] = useState(0);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/rates');
+      const data = await res.json();
+      if (data.rates) {
+        setExchangeRates(data.rates);
+      }
+    } catch (error) {
+      console.error('Failed to fetch rates:', error);
+    }
+  }, []);
 
   const toggleTheme = useCallback(() => {
     setIsDarkMode(prev => !prev);
@@ -91,10 +104,15 @@ export default function Dashboard() {
     }
 
     fetchData();
+    fetchRates();
     
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    const ratesInterval = setInterval(fetchRates, 60000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(ratesInterval);
+    };
+  }, [fetchData, fetchRates]);
 
   const formatTime = (date: Date) => {
     const now = new Date();
@@ -274,29 +292,32 @@ export default function Dashboard() {
                 </h3>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {EXCHANGE_RATES.map((rate, index) => (
-                  <motion.div
-                    key={index}
-                    whileHover={{ scale: 1.02 }}
-                    className={cn(
-                      'p-4 rounded-xl text-center',
-                      isDarkMode ? 'bg-white/5' : 'bg-slate-50'
-                    )}
-                  >
-                    <p className={cn(
-                      'text-xs font-medium mb-1',
-                      isDarkMode ? 'text-slate-400' : 'text-slate-500'
-                    )}>
-                      {rate.from} → {rate.to}
-                    </p>
-                    <p className={cn(
-                      'text-lg font-bold',
-                      isDarkMode ? 'text-white' : 'text-slate-900'
-                    )}>
-                      {rate.symbol}{rate.rate.toLocaleString()}
-                    </p>
-                  </motion.div>
-                ))}
+                {DISPLAY_RATES.map((rate, index) => {
+                  const apiRate = exchangeRates[rate.to] || 1;
+                  return (
+                    <motion.div
+                      key={index}
+                      whileHover={{ scale: 1.02 }}
+                      className={cn(
+                        'p-4 rounded-xl text-center',
+                        isDarkMode ? 'bg-white/5' : 'bg-slate-50'
+                      )}
+                    >
+                      <p className={cn(
+                        'text-xs font-medium mb-1',
+                        isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                      )}>
+                        {rate.from} → {rate.to}
+                      </p>
+                      <p className={cn(
+                        'text-lg font-bold',
+                        isDarkMode ? 'text-white' : 'text-slate-900'
+                      )}>
+                        {rate.symbol}{apiRate.toLocaleString()}
+                      </p>
+                    </motion.div>
+                  );
+                })}
               </div>
             </motion.div>
 

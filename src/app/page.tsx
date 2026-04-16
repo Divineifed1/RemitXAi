@@ -14,14 +14,6 @@ import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { useWallet } from '@/context/WalletContext';
 import type { Message, IntentResult, TransactionData, ConversionData, Recipient, ChatState, ConfirmationData, Alert, Transaction } from '@/types';
 
-const EXCHANGE_RATES: Record<string, number> = {
-  'USD-NGN': 1400,
-  'USD-GBP': 0.79,
-  'USD-EUR': 0.92,
-  'USD-JPY': 148.5,
-  'XLM-NGN': 400,
-};
-
 const DEFAULT_RECIPIENTS: Recipient[] = [
   { id: '1', name: 'John', walletAddress: 'GCFX1827394710' },
   { id: '2', name: 'Divine', walletAddress: 'GCFX2983746510' },
@@ -65,14 +57,13 @@ function detectIntent(text: string): IntentResult {
   if (quickConvertMatch) {
     const from = quickConvertMatch[1].toUpperCase();
     const to = quickConvertMatch[2].toUpperCase();
-    const fromKey = from === 'USD' ? 'USD-NGN' : from === 'EUR' ? 'EUR-NGN' : from === 'GBP' ? 'GBP-NGN' : from === 'XLM' ? 'XLM-NGN' : null;
-    if (fromKey && EXCHANGE_RATES[fromKey]) {
+    if (from && to) {
       return {
         type: 'convert_currency',
         data: {
           amount: 100,
           fromCurrency: from,
-          toCurrency: 'NGN',
+          toCurrency: to,
         },
       };
     }
@@ -103,7 +94,9 @@ export default function Home() {
   } | null>(null);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [modalDefaults, setModalDefaults] = useState({ name: '', wallet: '' });
-  const [alerts, setAlerts] = useState<Alert[]>([]); // No notifications shown
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  const [isRatesLoading, setIsRatesLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
@@ -158,6 +151,26 @@ export default function Home() {
     if (!balance) {
       localStorage.setItem('remitx-balance', '250');
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        const res = await fetch('/api/rates');
+        const data = await res.json();
+        if (data.rates) {
+          setExchangeRates(data.rates);
+        }
+      } catch (error) {
+        console.error('Failed to fetch rates:', error);
+      } finally {
+        setIsRatesLoading(false);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -586,23 +599,9 @@ export default function Home() {
         const from = fromCurrency?.toUpperCase() || 'USD';
         let to = toCurrency?.toUpperCase() || 'NGN';
         
-        let rate = 1;
-        
-        if (to === 'NGN') {
-          if (from === 'USD') {
-            rate = EXCHANGE_RATES['USD-NGN'] || 1400;
-          } else if (from === 'EUR') {
-            rate = EXCHANGE_RATES['EUR-NGN'] || 1520;
-          } else if (from === 'GBP') {
-            rate = EXCHANGE_RATES['GBP-NGN'] || 1780;
-          } else if (from === 'XLM') {
-            rate = EXCHANGE_RATES['XLM-NGN'] || 400;
-          } else {
-            rate = EXCHANGE_RATES['USD-NGN'] || 1400;
-          }
-        } else if (from === 'USD' && to === 'XLM') {
-          rate = EXCHANGE_RATES['USD-XLM'] || 0.0035;
-        }
+        const fromRate = exchangeRates[from] || 1;
+        const toRate = exchangeRates[to] || 1;
+        const rate = toRate / fromRate;
         
         const toAmount = (amount || 100) * rate;
         
@@ -617,7 +616,7 @@ export default function Home() {
         const response: Message = {
           id: generateId(),
           role: 'ai',
-          content: `Converting ${conversionData.fromAmount} ${conversionData.fromCurrency} to ${conversionData.toCurrency}...`,
+          content: `Converting ${conversionData.fromAmount} ${conversionData.fromCurrency} to ${conversionData.toCurrency} at rate ${rate}...`,
           timestamp: new Date(),
           type: 'conversion',
           conversionData,
@@ -633,10 +632,15 @@ export default function Home() {
       }
       
       if (lowerContent === 'check rates' || lowerContent === 'show rates' || lowerContent === 'exchange rates') {
+        const ngnRate = exchangeRates['NGN'] || 1400;
+        const eurRate = exchangeRates['EUR'] || 0.92;
+        const gbpRate = exchangeRates['GBP'] || 0.79;
+        const xlmRate = exchangeRates['XLM'] || 0.0035;
+        
         const response: Message = {
           id: generateId(),
           role: 'ai',
-          content: `Current exchange rates:\n\n💵 USD → NGN: ₦1,400\n💶 EUR → NGN: ₦1,520\n💷 GBP → NGN: ₦1,780\n⭐ XLM → NGN: ₦400\n\nWould you like to convert any currency?`,
+          content: `Current exchange rates:\n\n💵 USD → NGN: ₦${ngnRate.toLocaleString()}\n💶 EUR → NGN: ₦${Math.round(ngnRate / eurRate).toLocaleString()}\n💷 GBP → NGN: ₦${Math.round(ngnRate / gbpRate).toLocaleString()}\n⭐ XLM → NGN: ₦${Math.round(ngnRate * xlmRate).toLocaleString()}\n\nWould you like to convert any currency?`,
           timestamp: new Date(),
         };
         
