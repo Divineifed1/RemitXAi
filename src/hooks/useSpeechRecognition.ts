@@ -19,34 +19,37 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [isListening, setIsListening] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
-  const isSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
 
   useEffect(() => {
-    if (!isSupported) {
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognitionClass) {
       setError('Speech recognition not supported in this browser');
       return;
     }
 
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setIsSupported(true);
     const recognitionInstance = new SpeechRecognitionClass();
     recognitionRef.current = recognitionInstance;
-    
-    if (!recognitionInstance) return;
     
     recognitionInstance.continuous = false;
     recognitionInstance.interimResults = true;
     recognitionInstance.lang = 'en-US';
 
     recognitionInstance.onstart = () => {
+      console.log('Recognition started!');
       setIsListening(true);
       setVoiceState('listening');
       setError(null);
     };
 
     recognitionInstance.onresult = (event: { results: { length: number; [index: number]: { isFinal: boolean; 0: { transcript: string } } } }) => {
+      console.log('Got result:', event.results);
       const results = event.results;
       const lastResult = results[results.length - 1];
+      console.log('Last result:', lastResult[0].transcript);
       
       if (lastResult.isFinal) {
         setTranscript(lastResult[0].transcript);
@@ -57,12 +60,14 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     };
 
     recognitionInstance.onerror = (event: { error: string }) => {
+      console.log('recognition error:', event.error);
       setError(event.error);
       setIsListening(false);
       setVoiceState('idle');
     };
 
     recognitionInstance.onend = () => {
+      console.log('Recognition ended');
       setIsListening(false);
       const currentTranscript = transcript;
       if (currentTranscript.trim().length > 0) {
@@ -80,19 +85,22 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         recognitionRef.current.stop();
       }
     };
-  }, [isSupported]);
+  }, []);
 
   const startListening = useCallback(() => {
+    console.log('startListening called, isSupported:', isSupported, 'isListening:', isListening);
     if (recognitionRef.current && !isListening) {
       try {
+        console.log('Starting recognition...');
         recognitionRef.current.start();
       } catch (err) {
+        console.log('Start error:', err);
         if ((err as Error).name !== 'AlreadyStartedError') {
           setError('Failed to start speech recognition');
         }
       }
     }
-  }, [isListening]);
+  }, [isSupported, isListening]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {

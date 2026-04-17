@@ -100,7 +100,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
-  const { speak } = useSpeechSynthesis();
+  const { speak } = useSpeechSynthesis(voiceEnabled);
   const { sendPayment: sendPaymentToBackend, addFunds, refreshBalance } = useWallet();
   const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -204,6 +204,17 @@ export default function Home() {
       }
     };
   }, [addFunds]);
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (synth) {
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance('Hello, I am RemitX AI. How can I help you?');
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      setTimeout(() => synth.speak(utterance), 500);
+    }
+  }, []);
 
   const dismissAlert = useCallback((id: string) => {
     setAlerts(prev => prev.map(alert => 
@@ -598,6 +609,24 @@ export default function Home() {
         
         const from = fromCurrency?.toUpperCase() || 'USD';
         let to = toCurrency?.toUpperCase() || 'NGN';
+        
+        const validCurrencies = ['USD', 'NGN', 'EUR', 'GBP', 'JPY', 'XLM'];
+        
+        if (!validCurrencies.includes(from) || !validCurrencies.includes(to)) {
+          const invalidCurrencies = [from, to].filter(c => !validCurrencies.includes(c));
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: `I can't convert ${invalidCurrencies.join(', ')}. Supported currencies are: USD, NGN, EUR, GBP, JPY, XLM. Try 'Convert $100 USD to NGN'`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) {
+            speak(response.content);
+          }
+          return;
+        }
         
         const fromRate = exchangeRates[from] || 1;
         const toRate = exchangeRates[to] || 1;

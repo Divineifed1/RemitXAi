@@ -10,17 +10,28 @@ interface UseSpeechSynthesisReturn {
   toggleEnabled: () => void;
 }
 
-export function useSpeechSynthesis(): UseSpeechSynthesisReturn {
+export function useSpeechSynthesis(enabled: boolean = true): UseSpeechSynthesisReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isEnabled, setIsEnabled] = useState(true);
+  const [isEnabled, setIsEnabled] = useState(enabled);
   const [speechSupported, setSpeechSupported] = useState(false);
 
   useEffect(() => {
     setSpeechSupported(typeof window !== 'undefined' && 'speechSynthesis' in window);
   }, []);
 
+  useEffect(() => {
+    setIsEnabled(enabled);
+  }, [enabled]);
+
   const speak = useCallback((text: string) => {
-    if (!speechSupported || !isEnabled) return;
+    if (!isEnabled) {
+      return;
+    }
+
+    if (typeof window === 'undefined') return;
+
+    const supported = 'speechSynthesis' in window;
+    if (!supported) return;
 
     if (isSpeaking) {
       window.speechSynthesis.cancel();
@@ -44,7 +55,7 @@ export function useSpeechSynthesis(): UseSpeechSynthesisReturn {
     };
 
     window.speechSynthesis.speak(utterance);
-  }, [speechSupported, isEnabled, isSpeaking]);
+  }, [isEnabled, isSpeaking]);
 
   const cancel = useCallback(() => {
     if (speechSupported) {

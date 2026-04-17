@@ -54,13 +54,13 @@ export function ChatContainer({ messages, isDarkMode, isTyping, onConfirmPayment
             <h2 className={cn(
               'text-xl font-semibold mb-2 gradient-text'
             )}>
-              Hello I&apos;m RemitX AI
+              Welcome to RemitX AI
             </h2>
             <p className={cn(
               'text-sm max-w-xs',
               isDarkMode ? 'text-slate-400' : 'text-slate-500'
             )}>
-              How can I help you ?
+              Send money or convert currencies using voice or text. Try saying "Send $50 to John" or "Convert $100 to Naira"
             </p>
           </motion.div>
         )}
