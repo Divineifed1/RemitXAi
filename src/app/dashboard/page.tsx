@@ -31,13 +31,22 @@ interface DbTransaction {
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const { isLoading: walletLoading, refreshBalance } = useWallet();
-  const [balance, setBalance] = useState(0);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { balance, isLoading: walletLoading, refreshBalance, transactions: walletTxns } = useWallet();
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalSent, setTotalSent] = useState(0);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  // Format transactions from wallet context
+  const transactions: Transaction[] = walletTxns.map((t) => ({
+    id: String(t.id),
+    name: t.description,
+    amount: t.amount,
+    currency: '$',
+    status: t.type === 'credit' ? 'received' : 'sent',
+    type: t.type === 'credit' ? 'received' : 'sent',
+    timestamp: t.timestamp,
+  }));
 
   const fetchRates = useCallback(async () => {
     try {
@@ -62,39 +71,23 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const walletRes = await fetch('/api/wallet');
-      const walletData = await walletRes.json();
-      console.log('[Dashboard] Wallet data:', walletData);
+      await refreshBalance();
       
-      setBalance(walletData.balance);
-      
-      if (walletData.transactions) {
-        const formatted: Transaction[] = walletData.transactions.map((t: DbTransaction) => ({
-          id: String(t.id),
-          name: t.recipient,
-          amount: t.amount,
-          currency: '$',
-          status: t.type === 'receive' || t.type === 'received' ? 'received' : 'sent',
-          type: t.type === 'receive' || t.type === 'received' ? 'received' : 'sent',
-          timestamp: new Date(t.created_at || t.timestamp || Date.now()),
-        }));
-        setTransactions(formatted);
-        
-        const received = walletData.transactions
-          .filter((t: DbTransaction) => t.type === 'receive' || t.type === 'received')
-          .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
-        const sent = walletData.transactions
-          .filter((t: DbTransaction) => t.type === 'send')
-          .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
-        setTotalReceived(received);
-        setTotalSent(sent);
-      }
+      // Calculate totals from wallet context transactions
+      const received = walletTxns
+        .filter(t => t.type === 'credit')
+        .reduce((sum, t) => sum + t.amount, 0);
+      const sent = walletTxns
+        .filter(t => t.type === 'debit')
+        .reduce((sum, t) => sum + t.amount, 0);
+      setTotalReceived(received);
+      setTotalSent(sent);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshBalance, walletTxns]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');

@@ -33,9 +33,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log('[WalletContext] fetchWallet result:', data.balance);
       setBalance(data.balance);
       if (data.transactions) {
-        setTransactions(data.transactions.map((t: WalletTransaction) => ({
-          ...t,
-          timestamp: new Date(t.timestamp),
+        setTransactions(data.transactions.map((t: any) => ({
+          id: String(t.id || t.recipient),
+          type: t.type === 'receive' ? 'credit' : 'debit',
+          amount: t.amount,
+          description: t.recipient,
+          timestamp: new Date(t.created_at || t.timestamp || Date.now()),
         })));
       }
     } catch (error) {

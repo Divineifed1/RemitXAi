@@ -124,17 +124,19 @@ export async function getTransactions(limit = 20): Promise<{ id: number; recipie
   try {
     if (useRedis && redis) {
       const transactions = await redis.lrange(TRANSACTIONS_KEY, 0, limit - 1);
-      console.log('[Redis getTransactions] Upstash result:', transactions);
-      return transactions.map((t: string) => JSON.parse(t));
+      console.log('[Redis getTransactions] Upstash result count:', transactions?.length || 0);
+      return transactions?.map((t: string) => JSON.parse(t)) || [];
     }
     if (useIoRedis && ioredisClient) {
       const transactions = await ioredisClient.lrange(TRANSACTIONS_KEY, 0, limit - 1);
-      console.log('[Redis getTransactions] IoRedis result:', transactions);
-      return transactions.map((t: string) => JSON.parse(t));
+      console.log('[Redis getTransactions] IoRedis result count:', transactions?.length || 0);
+      console.log('[Redis getTransactions] Raw result:', transactions);
+      return transactions?.map((t: string) => JSON.parse(t)) || [];
     }
   } catch (error) {
     console.error('[Redis getTransactions] Error:', error);
   }
+  console.log('[Redis getTransactions] Falling back to in-memory, count:', inMemoryTransactions.length);
   return [...inMemoryTransactions].reverse().slice(0, limit);
 }
 
