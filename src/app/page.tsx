@@ -41,36 +41,73 @@ function detectIntent(text: string): IntentResult {
     };
   }
   
-  const convertMatch = lowerText.match(/convert\s+\$?(\d+)\s+(?:from\s+)?(\w+)?\s+(?:to\s+)?(\w+)/i);
+  // Match: convert [$]100 [from USD] to NGN
+  // Group 1: amount, Group 2: fromCurrency (if not "to"), Group 3: toCurrency
+  const convertMatch = lowerText.match(/convert\s+\$?(\d+)(?:\s+(?:from\s+)?((?!to\b)\w+))?(?:\s+to\s+(\w+))?/i);
   if (convertMatch) {
-    const toCurrencyRaw = convertMatch[3] || 'NGN';
-    let toCurrency = toCurrencyRaw;
-    if (['naira', 'nairas'].includes(toCurrencyRaw.toLowerCase())) {
-      toCurrency = 'NGN';
+    const amount = parseInt(convertMatch[1], 10);
+    const fromCurrencyRaw = convertMatch[2];
+    const toCurrencyRaw = convertMatch[3];
+    
+    // Determine from currency
+    let fromCurrency = 'USD';
+    if (fromCurrencyRaw && !['to'].includes(fromCurrencyRaw.toLowerCase())) {
+      if (['dollar', 'dollars', 'usd'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'USD';
+      } else if (['naira', 'nairas'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'NGN';
+      } else if (['euro', 'eur'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'EUR';
+      } else if (['pound', 'gbp'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'GBP';
+      } else if (['yen', 'jpy'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'JPY';
+      } else if (['xlm', 'stellar'].includes(fromCurrencyRaw.toLowerCase())) {
+        fromCurrency = 'XLM';
+      } else {
+        fromCurrency = fromCurrencyRaw.toUpperCase();
+      }
     }
-    const fromCurrencyRaw = convertMatch[2] || 'USD';
-    let fromCurrency = fromCurrencyRaw;
-    if (['dollar', 'dollars', 'usd'].includes(fromCurrencyRaw.toLowerCase())) {
-      fromCurrency = 'USD';
+    
+    // Determine to currency
+    let toCurrency = 'NGN';
+    if (toCurrencyRaw) {
+      if (['naira', 'nairas'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'NGN';
+      } else if (['dollar', 'dollars', 'usd'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'USD';
+      } else if (['euro', 'eur'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'EUR';
+      } else if (['pound', 'gbp'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'GBP';
+      } else if (['yen', 'jpy'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'JPY';
+      } else if (['xlm', 'stellar'].includes(toCurrencyRaw.toLowerCase())) {
+        toCurrency = 'XLM';
+      } else {
+        toCurrency = toCurrencyRaw.toUpperCase();
+      }
     }
+    
     return {
       type: 'convert_currency',
       data: {
-        amount: parseInt(convertMatch[1], 10),
+        amount,
         fromCurrency,
         toCurrency,
       },
     };
   }
   
+  // Quick convert: "usd to ngn" or "100 usd to ngn" (handled above)
   const quickConvertMatch = lowerText.match(/(\w+)\s+to\s+(\w+)/i);
-  if (quickConvertMatch) {
+  if (quickConvertMatch && !convertMatch) {
     let from = quickConvertMatch[1].toUpperCase();
     let to = quickConvertMatch[2].toUpperCase();
     if (['naira', 'nairas'].includes(quickConvertMatch[2].toLowerCase())) {
       to = 'NGN';
     }
-    if (['dollar', 'dollars'].includes(quickConvertMatch[1].toLowerCase())) {
+    if (['dollar', 'dollars', 'usd'].includes(quickConvertMatch[1].toLowerCase())) {
       from = 'USD';
     }
     if (from && to) {
@@ -643,11 +680,10 @@ export default function Home() {
       }
       
       if (intent.type === 'convert_currency' && intent.data) {
-        const { amount, fromCurrency } = intent.data;
-        let { toCurrency } = intent.data;
+        const { amount, fromCurrency, toCurrency } = intent.data;
         
         const from = fromCurrency?.toUpperCase() || 'USD';
-        let to = toCurrency?.toUpperCase() || 'NGN';
+        const to = toCurrency?.toUpperCase() || 'NGN';
         
         const validCurrencies = ['USD', 'NGN', 'EUR', 'GBP', 'JPY', 'XLM'];
         
@@ -688,6 +724,40 @@ export default function Home() {
           timestamp: new Date(),
           type: 'conversion',
           conversionData,
+        };
+        
+        setMessages(prev => [...prev, response]);
+        setIsTyping(false);
+        
+        if (voiceEnabled) {
+          speak(response.content);
+        }
+        return;
+      }
+      
+      if (lowerContent === 'send money' || lowerContent.startsWith('send ')) {
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: "Sure! I can help you send money. Please tell me the recipient's name and the amount you'd like to send. For example, 'Send $50 to John'",
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, response]);
+        setIsTyping(false);
+        
+        if (voiceEnabled) {
+          speak(response.content);
+        }
+        return;
+      }
+      
+      if (lowerContent === 'convert currency' || lowerContent.startsWith('convert ')) {
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: "Sure! I can help you convert currency. Please tell me how much you want to convert and the currencies involved. For example, 'Convert $100 from USD to Naira' or just '100 USD to Naira'",
+          timestamp: new Date(),
         };
         
         setMessages(prev => [...prev, response]);

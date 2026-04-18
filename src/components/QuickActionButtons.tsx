@@ -11,8 +11,8 @@ interface QuickActionButtonsProps {
 }
 
 const actions = [
-  { label: 'Send Money', command: 'Send $50 to John', icon: Send },
-  { label: 'Convert Currency', command: 'Convert $100 to Naira', icon: ArrowRightLeft },
+  { label: 'Send Money', command: 'Send money', icon: Send },
+  { label: 'Convert Currency', command: 'Convert currency', icon: ArrowRightLeft },
   { label: 'Add Recipient', command: '', icon: Users, isModal: true },
 ];
 

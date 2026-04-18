@@ -14,33 +14,51 @@ interface ChatInputProps {
 
 export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputProps) {
   const [message, setMessage] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const { transcript, voiceState, startListening, stopListening, error, isSupported } = useSpeechRecognition();
+  const { transcript, voiceState, startListening, stopListening, error, isSupported, isListening } = useSpeechRecognition();
   const inputRef = useRef<HTMLInputElement>(null);
-
   const submittedRef = useRef(false);
 
+  const isNoSpeechError = error?.includes('No speech detected');
+
+  // Derive display value: prioritize transcript when listening, otherwise use typed message
+  const displayMessage = (voiceState === 'listening' && transcript) ? transcript : message;
+  const isTyping = voiceState !== 'listening' || !transcript;
+
+  const handleInputChange = (value: string) => {
+    if (isTyping) {
+      setMessage(value);
+    }
+  };
+
   useEffect(() => {
-    if (transcript) {
+    // Sync input value when switching from listening to typing
+    // This effect updates local state from voice transcript - required for UX
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (!isListening && transcript) {
       setMessage(transcript);
     }
-  }, [transcript]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [isListening, transcript]);
 
   useEffect(() => {
     if (voiceState === 'processing' && transcript && !submittedRef.current) {
       submittedRef.current = true;
       onSubmit(transcript);
+      // Clear message after submission - allowed in effect side-effect
+      /* eslint-disable react-hooks/set-state-in-effect */
       setMessage('');
+      /* eslint-enable react-hooks/set-state-in-effect */
       setTimeout(() => {
         submittedRef.current = false;
-      }, 100);
+      }, 1500);
     }
   }, [voiceState, transcript, onSubmit]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim()) {
-      onSubmit(message.trim());
+    const textToSend = message.trim();
+    if (textToSend) {
+      onSubmit(textToSend);
       setMessage('');
     }
   };
@@ -48,12 +66,10 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
   const handleVoiceClick = () => {
     if (!isSupported) return;
     
-    if (isRecording) {
+    if (isListening) {
       stopListening();
-      setIsRecording(false);
     } else {
       startListening();
-      setIsRecording(true);
     }
   };
 
@@ -70,7 +86,7 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         'relative flex items-center gap-2 px-4 py-3 rounded-2xl border transition-all duration-200',
-        isRecording
+        isListening
           ? isDarkMode
             ? 'bg-red-500/10 border-red-500/30 shadow-lg shadow-red-500/20'
             : 'bg-red-50 border-red-300 shadow-lg shadow-red-200'
@@ -80,7 +96,7 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
       )}
     >
       <AnimatePresence>
-        {isRecording && (
+        {isListening && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -96,7 +112,6 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
             <button
               onClick={() => {
                 stopListening();
-                setIsRecording(false);
               }}
               className="ml-1"
             >
@@ -106,13 +121,51 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
         )}
       </AnimatePresence>
 
+       <AnimatePresence>
+         {error && !isListening && (
+           <motion.div
+             initial={{ opacity: 0, y: -10 }}
+             animate={{ opacity: 1, y: 0 }}
+             exit={{ opacity: 0, y: -10 }}
+             className="absolute -top-14 left-4 right-4 px-2 py-2 rounded text-xs bg-red-500/10 border border-red-500/30 text-red-500 flex flex-col gap-2"
+           >
+             <div className="flex items-center justify-between">
+               <span>{error}</span>
+             </div>
+             {isNoSpeechError && (
+               <div className="flex gap-2 mt-1">
+                 <button
+                   onClick={handleVoiceClick}
+                   className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-xs font-medium transition-colors"
+                 >
+                   Try Again
+                 </button>
+                 <span className="text-red-400/70 text-xs self-center">
+                   Speak clearly or check microphone settings
+                 </span>
+               </div>
+             )}
+           </motion.div>
+         )}
+       </AnimatePresence>
+
+      {!isSupported && (
+        <div className="absolute -top-10 left-4 right-4 px-2 py-1 rounded text-xs bg-amber-500/10 border border-amber-500/30 text-amber-500">
+          Voice input requires Chrome, Edge, or Safari browser
+        </div>
+      )}
+
       <input
         ref={inputRef}
         type="text"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        value={displayMessage}
+        onChange={(e) => handleInputChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Type or speak a command..."
+        placeholder={
+          !isSupported 
+            ? 'Speech recognition not supported. Use Chrome/Edge/Safari.' 
+            : 'Type or speak a command...'
+        }
         className={cn(
           'flex-1 bg-transparent outline-none text-sm',
           isDarkMode
@@ -128,15 +181,15 @@ export function ChatInput({ onSubmit, isDarkMode, isVoiceEnabled }: ChatInputPro
           onClick={handleVoiceClick}
           className={cn(
             'p-2 rounded-full transition-all duration-200',
-            isRecording
+            isListening
               ? 'bg-red-500 text-white'
               : isDarkMode
                 ? 'hover:bg-white/10 text-slate-400 hover:text-white'
                 : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
           )}
-          title={isRecording ? 'Stop recording' : 'Start voice input'}
+          title={isListening ? 'Stop recording' : 'Start voice input'}
         >
-          {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
         </motion.button>
       )}
 
