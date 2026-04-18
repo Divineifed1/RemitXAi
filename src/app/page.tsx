@@ -392,9 +392,12 @@ export default function Home() {
     
     try {
       const result = await sendPaymentToBackend(recipientName, amount);
+      console.log('[Payment] Result:', result);
       
       if (result.success) {
+        console.log('[Payment] Calling refreshBalance...');
         await refreshBalance();
+        console.log('[Payment] refreshBalance done');
         const transactionData: TransactionData = {
           recipient: recipientName,
           amount: amount,

@@ -52,34 +52,42 @@ const WALLET_KEY = 'remitx:wallet';
 const TRANSACTIONS_KEY = 'remitx:transactions';
 
 export async function getBalance(): Promise<number> {
+  console.log('[Redis getBalance] useRedis:', useRedis, 'useIoRedis:', useIoRedis);
   try {
     if (useRedis && redis) {
       const balance = await redis.get<number>(WALLET_KEY);
+      console.log('[Redis getBalance] Upstash result:', balance);
       return balance ?? 500;
     }
     if (useIoRedis && ioredisClient) {
       const balance = await ioredisClient.get(WALLET_KEY);
+      console.log('[Redis getBalance] IoRedis result:', balance);
       return balance ? parseFloat(balance) : 500;
     }
   } catch (error) {
-    console.error('Redis getBalance error:', error);
+    console.error('[Redis getBalance] Error:', error);
   }
+  console.log('[Redis getBalance] Falling back to in-memory:', inMemoryWallet.balance);
   return inMemoryWallet.balance;
 }
 
 export async function setBalance(amount: number): Promise<void> {
+  console.log('[Redis setBalance] Setting balance to:', amount, 'useRedis:', useRedis, 'useIoRedis:', useIoRedis);
   try {
     if (useRedis && redis) {
       await redis.set(WALLET_KEY, amount);
+      console.log('[Redis setBalance] Upstash success');
       return;
     }
     if (useIoRedis && ioredisClient) {
       await ioredisClient.set(WALLET_KEY, amount.toString());
+      console.log('[Redis setBalance] IoRedis success');
       return;
     }
   } catch (error) {
-    console.error('Redis setBalance error:', error);
+    console.error('[Redis setBalance] Error:', error);
   }
+  console.log('[Redis setBalance] Falling back to in-memory');
   inMemoryWallet.balance = amount;
 }
 
@@ -91,6 +99,8 @@ export async function addTransaction(recipient: string, amount: number, type: 's
     type,
     created_at: new Date().toISOString(),
   };
+  
+  console.log('[Redis addTransaction] Adding:', transaction);
 
   try {
     if (useRedis && redis) {
@@ -110,17 +120,20 @@ export async function addTransaction(recipient: string, amount: number, type: 's
 }
 
 export async function getTransactions(limit = 20): Promise<{ id: number; recipient: string; amount: number; type: 'send' | 'receive'; created_at: string }[]> {
+  console.log('[Redis getTransactions] useRedis:', useRedis, 'useIoRedis:', useIoRedis);
   try {
     if (useRedis && redis) {
       const transactions = await redis.lrange(TRANSACTIONS_KEY, 0, limit - 1);
+      console.log('[Redis getTransactions] Upstash result:', transactions);
       return transactions.map((t: string) => JSON.parse(t));
     }
     if (useIoRedis && ioredisClient) {
       const transactions = await ioredisClient.lrange(TRANSACTIONS_KEY, 0, limit - 1);
+      console.log('[Redis getTransactions] IoRedis result:', transactions);
       return transactions.map((t: string) => JSON.parse(t));
     }
   } catch (error) {
-    console.error('Redis getTransactions error:', error);
+    console.error('[Redis getTransactions] Error:', error);
   }
   return [...inMemoryTransactions].reverse().slice(0, limit);
 }

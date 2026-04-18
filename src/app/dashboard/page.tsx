@@ -25,6 +25,7 @@ interface DbTransaction {
   amount: number;
   type: 'send' | 'receive';
   created_at: string;
+  timestamp?: string;
 }
 
 export default function Dashboard() {
@@ -64,6 +65,7 @@ export default function Dashboard() {
       
       const txRes = await fetch('/api/transactions');
       const txData = await txRes.json();
+      console.log('[Dashboard] Transactions:', txData.transactions);
       
       if (txData.transactions) {
         const formatted: Transaction[] = txData.transactions.map((t: DbTransaction) => ({
@@ -71,9 +73,9 @@ export default function Dashboard() {
           name: t.recipient,
           amount: t.amount,
           currency: '$',
-          status: t.type === 'receive' ? 'received' : 'sent',
-          type: t.type === 'receive' ? 'received' : 'sent',
-          timestamp: new Date(t.created_at),
+          status: t.type === 'receive' || t.type === 'received' ? 'received' : 'sent',
+          type: t.type === 'receive' || t.type === 'received' ? 'received' : 'sent',
+          timestamp: new Date(t.created_at || t.timestamp || Date.now()),
         }));
         setTransactions(formatted);
         

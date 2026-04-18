@@ -30,6 +30,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/wallet');
       const data = await response.json();
+      console.log('[WalletContext] fetchWallet result:', data.balance);
       setBalance(data.balance);
       if (data.transactions) {
         setTransactions(data.transactions.map((t: WalletTransaction) => ({

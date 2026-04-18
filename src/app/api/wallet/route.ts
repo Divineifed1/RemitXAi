@@ -8,7 +8,9 @@ console.log('[WALLET API] Env vars:', {
 
 export async function GET() {
   try {
+    console.log('[WALLET API GET] Calling getBalance...');
     const balance = await getBalance();
+    console.log('[WALLET API GET] Balance returned:', balance);
     const transactions = await getTransactions(20);
 
     return NextResponse.json({ 
