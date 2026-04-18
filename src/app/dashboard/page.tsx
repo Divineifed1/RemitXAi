@@ -31,7 +31,8 @@ interface DbTransaction {
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const { balance, isLoading: walletLoading, refreshBalance } = useWallet();
+  const { isLoading: walletLoading, refreshBalance } = useWallet();
+  const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalSent, setTotalSent] = useState(0);
@@ -61,14 +62,14 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      await refreshBalance();
+      const walletRes = await fetch('/api/wallet');
+      const walletData = await walletRes.json();
+      console.log('[Dashboard] Wallet data:', walletData);
       
-      const txRes = await fetch('/api/transactions');
-      const txData = await txRes.json();
-      console.log('[Dashboard] Transactions:', txData.transactions);
+      setBalance(walletData.balance);
       
-      if (txData.transactions) {
-        const formatted: Transaction[] = txData.transactions.map((t: DbTransaction) => ({
+      if (walletData.transactions) {
+        const formatted: Transaction[] = walletData.transactions.map((t: DbTransaction) => ({
           id: String(t.id),
           name: t.recipient,
           amount: t.amount,
@@ -79,10 +80,10 @@ export default function Dashboard() {
         }));
         setTransactions(formatted);
         
-        const received = txData.transactions
-          .filter((t: DbTransaction) => t.type === 'receive')
+        const received = walletData.transactions
+          .filter((t: DbTransaction) => t.type === 'receive' || t.type === 'received')
           .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
-        const sent = txData.transactions
+        const sent = walletData.transactions
           .filter((t: DbTransaction) => t.type === 'send')
           .reduce((sum: number, t: DbTransaction) => sum + t.amount, 0);
         setTotalReceived(received);
@@ -93,7 +94,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshBalance]);
+  }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
