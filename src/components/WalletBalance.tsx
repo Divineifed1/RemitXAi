@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { Wallet, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useWallet } from '@/context/WalletContext';
@@ -28,9 +27,7 @@ export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress
     : address;
 
   return (
-    <motion.div
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+    <div
       key={address}
       className={cn(
         'flex items-center gap-2 px-3 py-2 rounded-2xl cursor-pointer',
@@ -56,21 +53,15 @@ export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress
       ) : (
         <>
           <Wallet className="w-4 h-4 text-white" />
-          <span className="text-white font-bold">
+          <span className="text-white font-bold tabular-nums">
             {isLoading ? (
               <span className="animate-pulse">...</span>
             ) : (
-              <motion.span
-                initial={{ y: -10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="tabular-nums"
-              >
-                ${balance.toLocaleString()}
-              </motion.span>
+              <span>${balance.toLocaleString()}</span>
             )}
           </span>
         </>
       )}
-    </motion.div>
+    </div>
   );
 }

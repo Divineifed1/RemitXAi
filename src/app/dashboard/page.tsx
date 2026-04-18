@@ -72,22 +72,24 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       await refreshBalance();
-      
-      // Calculate totals from wallet context transactions
-      const received = walletTxns
-        .filter(t => t.type === 'credit')
-        .reduce((sum, t) => sum + t.amount, 0);
-      const sent = walletTxns
-        .filter(t => t.type === 'debit')
-        .reduce((sum, t) => sum + t.amount, 0);
-      setTotalReceived(received);
-      setTotalSent(sent);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [refreshBalance, walletTxns]);
+  }, [refreshBalance]);
+
+  // Calculate totals from wallet transactions (separate effect)
+  useEffect(() => {
+    const received = walletTxns
+      .filter(t => t.type === 'credit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const sent = walletTxns
+      .filter(t => t.type === 'debit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    setTotalReceived(received);
+    setTotalSent(sent);
+  }, [walletTxns]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
@@ -98,10 +100,8 @@ export default function Dashboard() {
     fetchData();
     fetchRates();
     
-    const interval = setInterval(fetchData, 30000);
     const ratesInterval = setInterval(fetchRates, 60000);
     return () => {
-      clearInterval(interval);
       clearInterval(ratesInterval);
     };
   }, [fetchData, fetchRates]);

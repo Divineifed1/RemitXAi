@@ -25,9 +25,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-  const fetchWallet = useCallback(async () => {
+  const fetchWallet = useCallback(async (isInitial = false) => {
     try {
+      if (isInitial) {
+        setIsLoading(true);
+      }
       const response = await fetch('/api/wallet');
       const data = await response.json();
       console.log('[WalletContext] fetchWallet result:', data.balance);
@@ -41,10 +45,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           timestamp: new Date(t.created_at || t.timestamp || Date.now()),
         })));
       }
+      setHasLoaded(true);
+      console.log('[WalletContext] fetchWallet complete');
     } catch (error) {
       console.error('Failed to fetch wallet:', error);
+      setHasLoaded(true); // Still mark as loaded to stop loading state
     } finally {
-      setIsLoading(false);
+      if (isInitial) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -90,8 +99,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [fetchWallet]);
 
   useEffect(() => {
-    fetchWallet();
-  }, [fetchWallet]);
+    if (!hasLoaded) {
+      console.log('[WalletContext] Initial fetch');
+      fetchWallet(true);
+    }
+  }, [hasLoaded, fetchWallet]);
 
   return (
     <WalletContext.Provider
