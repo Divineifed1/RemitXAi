@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBalance, add, getTransactions } from '@/lib/backend/wallet';
+import { getBalance, setBalance, getTransactions, addTransaction } from '@/lib/redis';
 
 export async function GET() {
   try {
-    const balance = getBalance();
-    const transactions = getTransactions(20);
-    return NextResponse.json({ balance, transactions });
+    const balance = await getBalance();
+    const transactions = await getTransactions(20);
+
+    return NextResponse.json({ 
+      balance, 
+      transactions 
+    });
   } catch (error) {
+    console.error('Failed to fetch wallet data:', error);
     return NextResponse.json(
       { error: 'Failed to fetch wallet data' },
       { status: 500 }
@@ -26,16 +31,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const desc = description || 'Wallet top-up';
-    add(amount, desc);
+    const currentBalance = await getBalance();
+    const newBalance = currentBalance + amount;
+    
+    await setBalance(newBalance);
+    await addTransaction(description || 'Deposit', amount, 'receive');
 
-    const balance = getBalance();
     return NextResponse.json({
       success: true,
       message: `Added $${amount} to wallet`,
-      balance,
+      balance: newBalance,
     });
   } catch (error) {
+    console.error('Failed to add funds:', error);
     return NextResponse.json(
       { error: 'Failed to add funds' },
       { status: 500 }

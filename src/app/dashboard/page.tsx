@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { Wallet, ArrowUpRight, ArrowDownLeft, TrendingUp, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { WalletBalance } from '@/components/WalletBalance';
+import { useWallet } from '@/context/WalletContext';
 import { cn } from '@/lib/utils';
 import type { Transaction, ExchangeRate } from '@/types';
 
@@ -29,7 +30,7 @@ interface DbTransaction {
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [balance, setBalance] = useState(0);
+  const { balance, isLoading: walletLoading, refreshBalance } = useWallet();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalSent, setTotalSent] = useState(0);
@@ -59,15 +60,10 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [walletRes, txRes] = await Promise.all([
-        fetch('/api/wallet'),
-        fetch('/api/transactions'),
-      ]);
+      await refreshBalance();
       
-      const walletData = await walletRes.json();
+      const txRes = await fetch('/api/transactions');
       const txData = await txRes.json();
-      
-      setBalance(walletData.balance);
       
       if (txData.transactions) {
         const formatted: Transaction[] = txData.transactions.map((t: DbTransaction) => ({
@@ -95,7 +91,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshBalance]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
@@ -214,7 +210,7 @@ export default function Dashboard() {
                     'text-3xl font-bold',
                     isDarkMode ? 'text-white' : 'text-slate-900'
                   )}>
-                    {isLoading ? (
+                    {walletLoading || isLoading ? (
                       <span className="animate-pulse">...</span>
                     ) : (
                       `$${balance.toFixed(2)}`

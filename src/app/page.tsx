@@ -394,6 +394,7 @@ export default function Home() {
       const result = await sendPaymentToBackend(recipientName, amount);
       
       if (result.success) {
+        await refreshBalance();
         const transactionData: TransactionData = {
           recipient: recipientName,
           amount: amount,

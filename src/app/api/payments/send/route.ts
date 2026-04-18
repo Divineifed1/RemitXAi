@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendPayment as sendPaymentSync } from '@/lib/backend/payments';
+import { getBalance, setBalance, addTransaction } from '@/lib/redis';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,18 +8,33 @@ export async function POST(request: NextRequest) {
 
     if (!name || amount === undefined) {
       return NextResponse.json(
-        { error: 'Name and amount are required' },
+        { success: false, error: 'Name and amount are required' },
         { status: 400 }
       );
     }
 
-    const result = sendPaymentSync(name, amount);
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+    const currentBalance = await getBalance();
+    
+    if (currentBalance < amount) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient balance' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(result);
+    const newBalance = currentBalance - amount;
+    await setBalance(newBalance);
+    await addTransaction(name, amount, 'send');
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully sent $${amount} to ${name}`,
+      amount,
+      recipient: name,
+      newBalance,
+    });
   } catch (error) {
     console.error('Payment error:', error);
     return NextResponse.json(
