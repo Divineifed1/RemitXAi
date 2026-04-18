@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBalance, setBalance, getTransactions, addTransaction } from '@/lib/redis';
 
+console.log('[WALLET API] Env vars:', {
+  UPSTASH: process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'UNSET',
+  LEGACY: process.env.remitXAi_REDIS_URL ? 'SET' : 'UNSET',
+});
+
 export async function GET() {
   try {
     const balance = await getBalance();
