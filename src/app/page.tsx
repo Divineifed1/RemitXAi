@@ -868,7 +868,7 @@ export default function Home() {
           onToggleVoice={toggleVoice}
         />
 
-        <main className="relative z-10 pt-24 pb-6 px-4 max-w-2xl mx-auto min-h-screen flex flex-col">
+        <main className="relative z-10 pt-36 pb-6 px-3 sm:px-4 max-w-2xl mx-auto min-h-screen flex flex-col sm:pt-24">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

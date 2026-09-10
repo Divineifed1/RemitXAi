@@ -3,8 +3,8 @@ import { getBalance, add, getTransactions } from '@/lib/backend/wallet';
 
 export async function GET() {
   try {
-    const balance = getBalance();
-    const transactions = getTransactions();
+    const balance = await getBalance();
+    const transactions = await getTransactions();
     return NextResponse.json({ balance, transactions });
   } catch (error) {
     return NextResponse.json(
@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
     }
 
     const desc = description || 'Wallet top-up';
-    add(amount, desc);
+    await add(amount, desc);
 
-    const balance = getBalance();
+    const balance = await getBalance();
     return NextResponse.json({
       success: true,
       message: `Added $${amount} to wallet`,

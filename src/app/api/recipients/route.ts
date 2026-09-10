@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRecipients, addRecipient, findRecipientByName } from '@/lib/backend/recipients';
-import { getBalance, add as addFunds } from '@/lib/backend/wallet';
+import { getRecipients, addRecipient, findRecipientByName } from '@/lib/supabase-db';
+import { getBalance, add } from '@/lib/supabase-db';
 
 export async function GET() {
   try {
-    const recipients = getRecipients();
+    const recipients = await getRecipients();
     return NextResponse.json({ recipients });
   } catch (error) {
     return NextResponse.json(
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = findRecipientByName(name);
+    const existing = await findRecipientByName(name);
     if (existing) {
       return NextResponse.json(
         { error: 'Recipient already exists' },
@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const recipient = addRecipient(name, wallet);
+    const recipient = await addRecipient(name, wallet);
 
     const bonusAmount = 50;
-    addFunds(bonusAmount, `Welcome bonus for adding ${name}`);
+    await add(bonusAmount, `Welcome bonus for adding ${name}`);
 
-    const balance = getBalance();
+    const balance = await getBalance();
 
     return NextResponse.json(
       {

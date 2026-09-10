@@ -20,14 +20,14 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       className={cn(
-        'fixed top-0 left-0 right-0 z-50 px-6 py-4 rounded-b-2xl',
+        'fixed top-0 left-0 right-0 z-50 px-3 py-3 sm:px-6 sm:py-4 rounded-b-2xl',
         isDarkMode 
           ? 'bg-[#0B1220]/80 border-b border-white/5' 
           : 'bg-white/80 border-b border-[#BCC3EE]/30'
       )}
     >
-      <div className="max-w-4xl mx-auto flex items-center justify-between ">
-        <div className="flex items-center gap-3 ml-0 rounded-lg">
+      <div className="max-w-4xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-center gap-3 sm:justify-start rounded-lg">
           <Image
             src="/Glow.png"
             alt="RemitX AI Logo"
@@ -49,62 +49,66 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <WalletBalance isDarkMode={isDarkMode} showAddress address="GCFX7FJHBM4CYGERTUQJQD5EKQ6CWG6CXKNR6FWKH3VQNR7L3XJSC6OQW" />
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <WalletBalance isDarkMode={isDarkMode} showAddress address="GCFX7FJHBM4CYGERTUQJQD5EKQ6CWG6CXKNR6FWKH3VQNR7L3XJSC6OQW" />
+          </div>
 
-          <Link href="/dashboard">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/dashboard">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={cn(
+                  'p-2 rounded-lg transition-colors',
+                  isDarkMode 
+                    ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
+                    : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
+                )}
+                title="Go to Dashboard"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+              </motion.button>
+            </Link>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={onToggleVoice}
               className={cn(
                 'p-2 rounded-lg transition-colors',
                 isDarkMode 
                   ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
                   : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
               )}
-              title="Go to Dashboard"
+              title={isVoiceEnabled ? 'Disable voice output' : 'Enable voice output'}
             >
-              <LayoutDashboard className="w-5 h-5" />
+              {isVoiceEnabled ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
             </motion.button>
-          </Link>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onToggleVoice}
-            className={cn(
-              'p-2 rounded-lg transition-colors',
-              isDarkMode 
-                ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
-                : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
-            )}
-            title={isVoiceEnabled ? 'Disable voice output' : 'Enable voice output'}
-          >
-            {isVoiceEnabled ? (
-              <Volume2 className="w-5 h-5" />
-            ) : (
-              <VolumeX className="w-5 h-5" />
-            )}
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onToggleTheme}
-            className={cn(
-              'p-2 rounded-lg transition-colors',
-              isDarkMode 
-                ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
-                : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
-            )}
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDarkMode ? (
-              <Sun className="w-5 h-5" />
-            ) : (
-              <Moon className="w-5 h-5" />
-            )}
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onToggleTheme}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                isDarkMode 
+                  ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
+                  : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
+              )}
+              title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDarkMode ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.header>

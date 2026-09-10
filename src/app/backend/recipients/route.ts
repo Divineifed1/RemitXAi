@@ -4,7 +4,7 @@ import { getBalance, add } from '@/lib/backend/wallet';
 
 export async function GET() {
   try {
-    const recipients = getRecipients();
+    const recipients = await getRecipients();
     return NextResponse.json({ recipients });
   } catch (error) {
     return NextResponse.json(
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = findRecipientByName(name);
+    const existing = await findRecipientByName(name);
     if (existing) {
       return NextResponse.json(
         { error: 'Recipient already exists' },
@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const recipient = addRecipient(name, wallet);
+    const recipient = await addRecipient(name, wallet);
 
     const bonusAmount = 50;
-    add(bonusAmount, `Welcome bonus for adding ${name}`);
+    await add(bonusAmount, `Welcome bonus for adding ${name}`);
 
-    const balance = getBalance();
+    const balance = await getBalance();
 
     return NextResponse.json(
       {

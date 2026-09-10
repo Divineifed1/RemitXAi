@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getTransactions } from '@/lib/redis';
+import { getTransactions } from '@/lib/supabase-db';
 
 export async function GET() {
   try {
-    console.log('[Transactions API] Fetching transactions...');
     const transactions = await getTransactions(50);
-    console.log('[Transactions API] Found:', transactions.length, 'transactions');
     return NextResponse.json({ transactions });
   } catch (error) {
     console.error('[Transactions API] Error:', error);

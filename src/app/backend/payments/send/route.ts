@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = sendPayment(name, amount);
+    const result = await sendPayment(name, amount);
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

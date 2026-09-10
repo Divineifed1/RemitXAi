@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBalance, setBalance, getTransactions, addTransaction } from '@/lib/redis';
+import { getBalance, add, getTransactions } from '@/lib/supabase-db';
 
-console.log('[WALLET API] Env vars:', {
-  UPSTASH: process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'UNSET',
-  LEGACY: process.env.remitXAi_REDIS_URL ? 'SET' : 'UNSET',
-});
+console.log('[WALLET API] Using Supabase data layer');
 
 export async function GET() {
   try {
-    console.log('[WALLET API GET] Calling getBalance...');
     const balance = await getBalance();
-    console.log('[WALLET API GET] Balance returned:', balance);
     const transactions = await getTransactions(20);
 
-    return NextResponse.json({ 
-      balance, 
-      transactions 
+    return NextResponse.json({
+      balance,
+      transactions
     });
   } catch (error) {
     console.error('Failed to fetch wallet data:', error);
@@ -40,9 +35,8 @@ export async function POST(request: NextRequest) {
 
     const currentBalance = await getBalance();
     const newBalance = currentBalance + amount;
-    
-    await setBalance(newBalance);
-    await addTransaction(description || 'Deposit', amount, 'receive');
+
+    await add(newBalance - currentBalance, description || 'Deposit');
 
     return NextResponse.json({
       success: true,

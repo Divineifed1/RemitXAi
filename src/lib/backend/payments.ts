@@ -8,32 +8,33 @@ export interface PaymentResult {
   recipient?: string;
 }
 
-export function sendPayment(name: string, amount: number): PaymentResult {
-  const recipient = findRecipientByName(name);
-  
+export async function sendPayment(name: string, amount: number): Promise<PaymentResult> {
+  const recipient = await findRecipientByName(name);
+
   if (!recipient) {
     return {
       success: false,
       message: `Recipient "${name}" not found. Please add them first.`,
     };
   }
-  
+
   if (amount <= 0) {
     return {
       success: false,
       message: 'Invalid amount. Please enter a positive number.',
     };
   }
-  
+
+  const balance = await getBalance();
   if (!deduct(amount)) {
     return {
       success: false,
-      message: `Insufficient balance. Current balance: $${getBalance()}`,
+      message: `Insufficient balance. Current balance: $${balance}`,
     };
   }
-  
-  recordTransaction(recipient.name, amount, 'send');
-  
+
+  await recordTransaction(recipient.name, amount, 'send');
+
   return {
     success: true,
     message: `Successfully sent $${amount} to ${recipient.name}`,
