@@ -37,12 +37,16 @@ export interface ConversionData {
 }
 
 export interface IntentResult {
-  type: 'send_money' | 'convert_currency' | 'unknown';
+  type: 'send_money' | 'convert_currency' | 'check_balance' | 'view_history' | 'offramp' | 'add_bank' | 'create_stellar' | 'check_stellar' | 'send_stellar' | 'unknown';
   data?: {
     amount?: number;
     recipient?: string;
     fromCurrency?: string;
     toCurrency?: string;
+    bankName?: string;
+    accountNumber?: string;
+    accountName?: string;
+    stellarAddress?: string;
   };
 }
 
@@ -54,7 +58,7 @@ export interface Recipient {
   walletAddress: string;
 }
 
-export type ChatState = 'idle' | 'awaiting_wallet' | 'confirming_payment' | 'awaiting_save_confirmation';
+export type ChatState = 'idle' | 'awaiting_wallet' | 'confirming_payment' | 'awaiting_save_confirmation' | 'awaiting_bank_details';
 
 export interface PendingTransaction {
   recipientName: string;

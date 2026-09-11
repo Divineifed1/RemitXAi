@@ -184,4 +184,126 @@ export async function findRecipientByName(name: string): Promise<{ name: string;
   return { name: data.name, wallet: data.wallet };
 }
 
+export interface BankAccount {
+  id: number;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  is_default: boolean;
+}
+
+export interface OfframpTransaction {
+  id: number;
+  amount: number;
+  naira_amount: number;
+  rate: number;
+  status: string;
+  reference: string;
+  bank_account: {
+    bank_name: string;
+    account_number: string;
+    account_name: string;
+  };
+  created_at: string;
+}
+
+export async function getBankAccounts(): Promise<BankAccount[]> {
+  if (useInMemory || !supabaseAdmin) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from('bank_accounts')
+    .select('id, bank_name, account_number, account_name, is_default')
+    .order('is_default', { ascending: false });
+
+  if (error || !data) return [];
+  return data as BankAccount[];
+}
+
+export async function addBankAccount(bankName: string, accountNumber: string, accountName: string): Promise<BankAccount> {
+  if (useInMemory || !supabaseAdmin) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('bank_accounts')
+    .insert({
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_name: accountName,
+      is_default: false,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to add bank account');
+  }
+
+  return data as BankAccount;
+}
+
+export async function getOfframpTransactions(limit = 20): Promise<OfframpTransaction[]> {
+  if (useInMemory || !supabaseAdmin) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from('offramp_transactions')
+    .select(`
+      id, amount, naira_amount, rate, status, reference, created_at,
+      bank_accounts ( bank_name, account_number, account_name )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data.map((row: any) => ({
+    id: row.id,
+    amount: row.amount,
+    naira_amount: row.naira_amount,
+    rate: row.rate,
+    status: row.status,
+    reference: row.reference,
+    bank_account: row.bank_accounts || {},
+    created_at: row.created_at,
+  }));
+}
+
+export async function createOfframpTransaction(bankAccountId: number, amount: number, nairaAmount: number, rate: number): Promise<OfframpTransaction> {
+  if (useInMemory || !supabaseAdmin) {
+    throw new Error('Supabase not configured');
+  }
+
+  const reference = `OFF-${Date.now().toString(36).toUpperCase()}`;
+
+  const { data, error } = await supabaseAdmin
+    .from('offramp_transactions')
+    .insert({
+      bank_account_id: bankAccountId,
+      amount,
+      naira_amount: nairaAmount,
+      rate,
+      status: 'pending',
+      reference,
+    })
+    .select(`
+      id, amount, naira_amount, rate, status, reference, created_at,
+      bank_accounts ( bank_name, account_number, account_name )
+    `)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to create off-ramp transaction');
+  }
+
+  return {
+    id: data.id,
+    amount: data.amount,
+    naira_amount: data.naira_amount,
+    rate: data.rate,
+    status: data.status,
+    reference: data.reference,
+    bank_account: Array.isArray(data.bank_accounts) ? (data.bank_accounts[0] || {}) : (data.bank_accounts || {}),
+    created_at: data.created_at,
+  } as OfframpTransaction;
+}
+
 export { useInMemory };

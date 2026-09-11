@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Send, ArrowRightLeft, Users } from 'lucide-react';
+import { Send, ArrowRightLeft, Users, Wallet, Landmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QuickActionButtonsProps {
@@ -13,6 +13,8 @@ interface QuickActionButtonsProps {
 const actions = [
   { label: 'Send Money', command: 'Send money', icon: Send },
   { label: 'Convert Currency', command: 'Convert currency', icon: ArrowRightLeft },
+  { label: 'Off-ramp to Bank', command: 'Withdraw to bank', icon: Landmark },
+  { label: 'Add Bank', command: 'Add bank account', icon: Wallet },
   { label: 'Add Recipient', command: '', icon: Users, isModal: true },
 ];
 

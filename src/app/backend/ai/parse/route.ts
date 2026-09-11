@@ -13,10 +13,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parsed = parseMessage(message);
+    const parsed = await parseMessage(message);
 
     return NextResponse.json(parsed);
   } catch (error) {
+    console.error('AI parse error:', error);
     return NextResponse.json(
       { error: 'Failed to parse message' },
       { status: 500 }

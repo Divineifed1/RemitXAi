@@ -27,113 +27,122 @@ function generateId() {
   return Math.random().toString(36).substring(2, 11);
 }
 
-function detectIntent(text: string): IntentResult {
-  const lowerText = text.toLowerCase();
-  
-  const wordToNum: Record<string, number> = {
-    hundred: 100, fifty: 50, twenty: 20, thirty: 30, forty: 40,
-    sixty: 60, seventy: 70, eighty: 80, ninety: 90,
-    ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
-    sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
-  };
-  
-  const currencyWords = 'dollar|dollars|usd|us\\$|naira|nairas|ngn|euro|eur|pound|gbp';
-  const sendMatch = lowerText.match(new RegExp(`send\\s+\\$?(\\d+|hundred|fifty|twenty|thirty|forty|sixty|seventy|eighty|ninety|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)(?:\\s+(?:${currencyWords}))?(?:\\s+(?:to\\s+))?([a-z]+)`, 'i'));
-  if (sendMatch) {
-    const amountStr = sendMatch[1];
-    const amount = wordToNum[amountStr] || parseInt(amountStr, 10);
-    return {
-      type: 'send_money',
-      data: {
-        amount,
-        recipient: sendMatch[2],
-      },
-    };
-  }
-  
-  // Match: convert [$]100 [from USD] to NGN
-  // Group 1: amount, Group 2: fromCurrency (if not "to"), Group 3: toCurrency
-  const convertMatch = lowerText.match(/convert\s+\$?(\d+)(?:\s+(?:from\s+)?((?!to\b)\w+))?(?:\s+to\s+(\w+))?/i);
-  if (convertMatch) {
-    const amount = parseInt(convertMatch[1], 10);
-    const fromCurrencyRaw = convertMatch[2];
-    const toCurrencyRaw = convertMatch[3];
-    
-    // Determine from currency
-    let fromCurrency = 'USD';
-    if (fromCurrencyRaw && !['to'].includes(fromCurrencyRaw.toLowerCase())) {
-      if (['dollar', 'dollars', 'usd'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'USD';
-      } else if (['naira', 'nairas'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'NGN';
-      } else if (['euro', 'eur'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'EUR';
-      } else if (['pound', 'gbp'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'GBP';
-      } else if (['yen', 'jpy'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'JPY';
-      } else if (['xlm', 'stellar'].includes(fromCurrencyRaw.toLowerCase())) {
-        fromCurrency = 'XLM';
-      } else {
-        fromCurrency = fromCurrencyRaw.toUpperCase();
-      }
+async function parseIntent(text: string): Promise<IntentResult> {
+  try {
+    const response = await fetch('/backend/ai/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+
+    if (!response.ok) {
+      console.error('[AI Parse] HTTP error:', response.status);
+      return { type: 'unknown' };
     }
-    
-    // Determine to currency
-    let toCurrency = 'NGN';
-    if (toCurrencyRaw) {
-      if (['naira', 'nairas'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'NGN';
-      } else if (['dollar', 'dollars', 'usd'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'USD';
-      } else if (['euro', 'eur'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'EUR';
-      } else if (['pound', 'gbp'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'GBP';
-      } else if (['yen', 'jpy'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'JPY';
-      } else if (['xlm', 'stellar'].includes(toCurrencyRaw.toLowerCase())) {
-        toCurrency = 'XLM';
-      } else {
-        toCurrency = toCurrencyRaw.toUpperCase();
-      }
+
+    const data = await response.json();
+    console.log('[AI Parse] Response:', data);
+
+    if (data.error) {
+      console.error('[AI Parse] Error:', data.error);
+      return { type: 'unknown' };
     }
-    
-    return {
-      type: 'convert_currency',
-      data: {
-        amount,
-        fromCurrency,
-        toCurrency,
-      },
-    };
-  }
-  
-  // Quick convert: "usd to ngn" or "100 usd to ngn" (handled above)
-  const quickConvertMatch = lowerText.match(/(\w+)\s+to\s+(\w+)/i);
-  if (quickConvertMatch && !convertMatch) {
-    let from = quickConvertMatch[1].toUpperCase();
-    let to = quickConvertMatch[2].toUpperCase();
-    if (['naira', 'nairas'].includes(quickConvertMatch[2].toLowerCase())) {
-      to = 'NGN';
-    }
-    if (['dollar', 'dollars', 'usd'].includes(quickConvertMatch[1].toLowerCase())) {
-      from = 'USD';
-    }
-    if (from && to) {
+
+    const action = data.action;
+    const amount = data.amount ?? null;
+    const recipientName = data.recipientName || null;
+    const fromCurrency = data.fromCurrency || null;
+    const toCurrency = data.toCurrency || null;
+
+    if (action === 'send_money') {
       return {
-        type: 'convert_currency',
+        type: 'send_money',
         data: {
-          amount: 100,
-          fromCurrency: from,
-          toCurrency: to,
+          amount: amount ?? undefined,
+          recipient: recipientName ?? undefined,
         },
       };
     }
+
+    if (action === 'convert_currency') {
+      return {
+        type: 'convert_currency',
+        data: {
+          amount: amount ?? undefined,
+          fromCurrency: fromCurrency ?? undefined,
+          toCurrency: toCurrency ?? undefined,
+        },
+      };
+    }
+
+    if (action === 'check_balance') {
+      return {
+        type: 'check_balance',
+        data: {},
+      };
+    }
+
+    if (action === 'view_history') {
+      return {
+        type: 'view_history',
+        data: {},
+      };
+    }
+
+    if (action === 'offramp') {
+      return {
+        type: 'offramp',
+        data: {
+          amount: amount ?? undefined,
+          bankName: data.bankName || undefined,
+          accountNumber: data.accountNumber || undefined,
+          accountName: data.accountName || undefined,
+        },
+      };
+    }
+
+    if (action === 'add_bank') {
+      return {
+        type: 'add_bank',
+        data: {
+          bankName: data.bankName || undefined,
+          accountNumber: data.accountNumber || undefined,
+          accountName: data.accountName || undefined,
+        },
+      };
+    }
+
+    if (action === 'create_stellar') {
+      return {
+        type: 'create_stellar',
+        data: {},
+      };
+    }
+
+    if (action === 'check_stellar') {
+      return {
+        type: 'check_stellar',
+        data: {},
+      };
+    }
+
+    if (action === 'send_stellar') {
+      return {
+        type: 'send_stellar',
+        data: {
+          amount: amount ?? undefined,
+          stellarAddress: data.stellarAddress || undefined,
+        },
+      };
+    }
+
+    return { type: 'unknown' };
+  } catch (error) {
+    console.error('[AI Parse] Failed to parse intent:', error);
+    return { type: 'unknown' };
   }
-  
-  return { type: 'unknown' };
 }
+
 
 function shortenWallet(address: string): string {
   if (address.length > 12) {
@@ -163,6 +172,8 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<{ id: number; bank_name: string; account_number: string; account_name: string; is_default: boolean }[]>([]);
+  const [pendingOfframp, setPendingOfframp] = useState<{ amount?: number; bankName?: string; accountNumber?: string; accountName?: string } | null>(null);
   const { speak } = useSpeechSynthesis(voiceEnabled);
   const { sendPayment: sendPaymentToBackend, addFunds, refreshBalance } = useWallet();
   const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -201,6 +212,22 @@ export default function Home() {
         setTransactions([]);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const loadBankAccounts = async () => {
+      try {
+        const res = await fetch('/backend/banks');
+        const data = await res.json();
+        if (data.accounts) {
+          setBankAccounts(data.accounts);
+        }
+      } catch (error) {
+        console.error('Failed to load bank accounts:', error);
+      }
+    };
+
+    loadBankAccounts();
   }, []);
 
   useEffect(() => {
@@ -377,9 +404,7 @@ export default function Home() {
   }, [voiceEnabled, speak]);
 
   const handleConfirmPayment = useCallback(async () => {
-    if (!pendingTransaction) return;
-    
-    const { recipientName, amount } = pendingTransaction;
+    if (!pendingTransaction && !pendingOfframp) return;
     
     setMessages(prev => [...prev, {
       id: generateId(),
@@ -391,69 +416,193 @@ export default function Home() {
     setIsTyping(true);
     
     try {
-      const result = await sendPaymentToBackend(recipientName, amount);
-      console.log('[Payment] Result:', result);
-      
-      if (result.success) {
-        console.log('[Payment] Calling refreshBalance...');
-        await refreshBalance();
-        console.log('[Payment] refreshBalance done');
-        const transactionData: TransactionData = {
-          recipient: recipientName,
-          amount: amount,
-          currency: '$',
-          status: 'success',
-          type: 'sent',
-        };
-        
-        const response: Message = {
-          id: generateId(),
-          role: 'ai',
-          content: `Successfully sent $${amount} to ${recipientName}!`,
-          timestamp: new Date(),
-          type: 'transaction',
-          transactionData,
-        };
-        
-        setMessages(prev => [...prev, response]);
-        
-        const newTransaction: Transaction = {
-          id: generateId(),
-          name: recipientName,
-          amount: amount,
-          currency: '$',
-          status: 'sent',
-          type: 'sent',
-          timestamp: new Date(),
-        };
-        
-        setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
-        
-        const newUsageCount = { ...recipientUsageCount };
-        newUsageCount[recipientName.toLowerCase()] = (newUsageCount[recipientName.toLowerCase()] || 0) + 1;
-        setRecipientUsageCount(newUsageCount);
-        
-        if (newUsageCount[recipientName.toLowerCase()] === 3 && !insightTriggered) {
-          setInsightTriggered(true);
-          setTimeout(() => {
-            triggerInsight('frequent', `You've sent money to ${recipientName} multiple times. Would you like to automate this as a weekly transfer?`);
-          }, 2000);
+      if (pendingOfframp && pendingOfframp.amount) {
+        const bankAccountId = bankAccounts.find(a => a.bank_name === pendingOfframp.bankName)?.id || bankAccounts[0]?.id;
+        if (!bankAccountId) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'Please add a bank account first before withdrawing.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          setPendingTransaction(null);
+          setPendingOfframp(null);
+          setChatState('idle');
+          return;
         }
-        
-        if (voiceEnabled) {
-          speak(response.content);
+
+        const ngnRate = exchangeRates['NGN'] || 1400;
+        const nairaAmount = Math.round(pendingOfframp.amount * ngnRate);
+
+        const offrampRes = await fetch('/backend/offramp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bankAccountId,
+            amount: pendingOfframp.amount,
+            nairaAmount,
+            rate: ngnRate,
+          }),
+        });
+
+        const offrampData = await offrampRes.json();
+
+        if (offrampRes.ok && offrampData.success) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: `Off-ramp initiated! $${pendingOfframp.amount} → ₦${nairaAmount.toLocaleString()} will be sent to your ${pendingOfframp.bankName} account. Reference: ${offrampData.transaction?.reference}`,
+            timestamp: new Date(),
+            type: 'transaction',
+            transactionData: {
+              recipient: pendingOfframp.bankName || 'bank',
+              amount: pendingOfframp.amount,
+              currency: 'USD',
+              status: 'success',
+              type: 'sent',
+            },
+          };
+
+          setMessages(prev => [...prev, response]);
+          setPendingTransaction(null);
+          setPendingOfframp(null);
+          setChatState('idle');
+          setIsTyping(false);
+
+          if (voiceEnabled) speak(response.content);
+        } else {
+          const errorMessage: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: offrampData.error || 'Off-ramp failed. Please try again.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          setIsTyping(false);
+          setPendingTransaction(null);
+          setPendingOfframp(null);
+          setChatState('idle');
+        }
+        return;
+      }
+
+      if (!pendingTransaction) return;
+      const { recipientName, amount, walletAddress } = pendingTransaction;
+
+      if (recipientName === 'Stellar' && walletAddress) {
+        try {
+          const res = await fetch('/api/stellar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'send',
+              destination: walletAddress,
+              amount: amount.toString(),
+            }),
+          });
+          const stellarData = await res.json();
+
+          if (res.ok && stellarData.success) {
+            const response: Message = {
+              id: generateId(),
+              role: 'ai',
+              content: `Successfully sent ${amount} XLM to ${shortenWallet(walletAddress)}!`,
+              timestamp: new Date(),
+              type: 'transaction',
+              transactionData: {
+                recipient: 'Stellar',
+                amount,
+                currency: 'XLM',
+                status: 'success',
+                type: 'sent',
+              },
+            };
+            setMessages(prev => [...prev, response]);
+          } else {
+            const errorMessage: Message = {
+              id: generateId(),
+              role: 'ai',
+              content: stellarData.error || 'Stellar transfer failed. Please try again.',
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          }
+        } catch (error) {
+          const errorMessage: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'An error occurred while processing your Stellar transfer.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
         }
       } else {
-        const errorMessage: Message = {
-          id: generateId(),
-          role: 'ai',
-          content: result.message || 'Payment failed. Please try again.',
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        
-        if (voiceEnabled) {
-          speak(result.message || 'Payment failed');
+        const result = await sendPaymentToBackend(recipientName, amount);
+        console.log('[Payment] Result:', result);
+
+        if (result.success) {
+          console.log('[Payment] Calling refreshBalance...');
+          await refreshBalance();
+          console.log('[Payment] refreshBalance done');
+          const transactionData: TransactionData = {
+            recipient: recipientName,
+            amount: amount,
+            currency: '$',
+            status: 'success',
+            type: 'sent',
+          };
+
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: `Successfully sent $${amount} to ${recipientName}!`,
+            timestamp: new Date(),
+            type: 'transaction',
+            transactionData,
+          };
+
+          setMessages(prev => [...prev, response]);
+
+          const newTransaction: Transaction = {
+            id: generateId(),
+            name: recipientName,
+            amount: amount,
+            currency: '$',
+            status: 'sent',
+            type: 'sent',
+            timestamp: new Date(),
+          };
+
+          setTransactions(prev => [newTransaction, ...prev].slice(0, 10));
+
+          const newUsageCount = { ...recipientUsageCount };
+          newUsageCount[recipientName.toLowerCase()] = (newUsageCount[recipientName.toLowerCase()] || 0) + 1;
+          setRecipientUsageCount(newUsageCount);
+
+          if (newUsageCount[recipientName.toLowerCase()] === 3 && !insightTriggered) {
+            setInsightTriggered(true);
+            setTimeout(() => {
+              triggerInsight('frequent', `You've sent money to ${recipientName} multiple times. Would you like to automate this as a weekly transfer?`);
+            }, 2000);
+          }
+
+          if (voiceEnabled) {
+            speak(response.content);
+          }
+        } else {
+          const errorMessage: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: result.message || 'Payment failed. Please try again.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+
+          if (voiceEnabled) {
+            speak(result.message || 'Payment failed');
+          }
         }
       }
     } catch (error) {
@@ -467,9 +616,10 @@ export default function Home() {
     } finally {
       setIsTyping(false);
       setPendingTransaction(null);
+      setPendingOfframp(null);
       setChatState('idle');
     }
-  }, [pendingTransaction, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight, sendPaymentToBackend]);
+  }, [pendingTransaction, pendingOfframp, bankAccounts, exchangeRates, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight, sendPaymentToBackend, refreshBalance]);
 
   const handleCancelPayment = useCallback(() => {
     if (!pendingTransaction) return;
@@ -498,8 +648,7 @@ export default function Home() {
       }
     }, 500);
   }, [pendingTransaction, voiceEnabled, speak]);
-
-  const handleSendMessage = useCallback((content: string) => {
+  const handleSendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
     
     const userMessage: Message = {
@@ -512,7 +661,7 @@ export default function Home() {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
-    setTimeout(() => {
+    setTimeout(async () => {
       const lowerContent = content.toLowerCase();
       
       if (chatState === 'awaiting_wallet' && pendingTransaction) {
@@ -553,6 +702,7 @@ export default function Home() {
             content: "Please provide a valid wallet address.",
             timestamp: new Date(),
           };
+          
           setMessages(prev => [...prev, response]);
           setIsTyping(false);
           return;
@@ -635,8 +785,236 @@ export default function Home() {
         }
       }
       
-      const intent = detectIntent(content);
+      const intent = await parseIntent(content);
       
+      if (intent.type === 'check_balance') {
+        const balance = await fetch('/api/wallet').then(res => res.json()).catch(() => ({ balance: 'unavailable' }));
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: `Your current balance is $${balance.balance ?? 'unavailable'}.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, response]);
+        setIsTyping(false);
+        if (voiceEnabled) {
+          speak(response.content);
+        }
+        return;
+      }
+
+      if (intent.type === 'view_history') {
+        const res = await fetch('/api/transactions');
+        const data = await res.json();
+        const transactions = data.transactions || [];
+        if (transactions.length === 0) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'You have no transactions yet.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+        } else {
+          const lines = transactions.slice(0, 5).map((t: any) => `${t.type === 'send' ? 'Sent' : 'Received'} $${t.amount} to ${t.recipient}`).join('\n');
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: `Recent transactions:\n${lines}`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+        }
+        setIsTyping(false);
+        if (voiceEnabled) {
+          speak('Here are your recent transactions');
+        }
+        return;
+      }
+
+      if (intent.type === 'add_bank' && intent.data) {
+        const { bankName, accountNumber, accountName } = intent.data;
+        setModalDefaults({ name: accountName || '', wallet: accountNumber || '' });
+        setShowRecipientModal(true);
+        setIsTyping(false);
+        return;
+      }
+
+      if (intent.type === 'offramp' && intent.data) {
+        const { amount, bankName, accountNumber, accountName } = intent.data;
+
+        if (!amount || amount <= 0) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'How much would you like to withdraw to your Nigerian bank account?',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) speak(response.content);
+          return;
+        }
+
+        let targetBank = bankName || accountName;
+        let targetAccount = accountNumber;
+
+        if (!targetBank && bankAccounts.length > 0) {
+          const defaultAccount = bankAccounts.find(a => a.is_default) || bankAccounts[0];
+          targetBank = defaultAccount.bank_name;
+          targetAccount = defaultAccount.account_number;
+        }
+
+        if (!targetBank) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'Please provide the bank name and account number for your Nigerian bank account. For example, "withdraw 100 to GTBank 1234567890"',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setPendingOfframp({ amount, bankName, accountNumber, accountName });
+          setIsTyping(false);
+          if (voiceEnabled) speak(response.content);
+          return;
+        }
+
+        const ngnRate = exchangeRates['NGN'] || 1400;
+        const nairaAmount = Math.round(amount * ngnRate);
+
+        setPendingOfframp({
+          amount,
+          bankName: targetBank,
+          accountNumber: targetAccount,
+          accountName: accountName,
+        });
+
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: `Confirm off-ramp: $${amount} → ₦${nairaAmount.toLocaleString()} at rate ₦${ngnRate}/$ to ${targetBank}${targetAccount ? ` (${shortenWallet(targetAccount)})` : ''}?`,
+          timestamp: new Date(),
+          type: 'confirmation',
+          confirmationData: {
+            recipientName: targetBank,
+            walletAddress: targetAccount || '',
+            amount,
+            currency: 'USD',
+          },
+        };
+
+        setPendingTransaction({
+          recipientName: targetBank,
+          amount,
+          walletAddress: targetAccount,
+        });
+        setChatState('confirming_payment');
+        setMessages(prev => [...prev, response]);
+        setIsTyping(false);
+        if (voiceEnabled) speak(response.content);
+        return;
+      }
+      
+      if (intent.type === 'send_stellar' && intent.data) {
+        const { amount, stellarAddress } = intent.data;
+
+        if (!stellarAddress) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'Please provide a valid Stellar address (starts with G).',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) speak(response.content);
+          return;
+        }
+
+        const response: Message = {
+          id: generateId(),
+          role: 'ai',
+          content: `Confirm sending ${amount} XLM to ${shortenWallet(stellarAddress)}?`,
+          timestamp: new Date(),
+          type: 'confirmation',
+          confirmationData: {
+            recipientName: 'Stellar',
+            walletAddress: stellarAddress,
+            amount: amount!,
+            currency: 'XLM',
+          },
+        };
+
+        setPendingTransaction({
+          recipientName: 'Stellar',
+          amount: amount!,
+          walletAddress: stellarAddress,
+        });
+        setChatState('confirming_payment');
+        setMessages(prev => [...prev, response]);
+        setIsTyping(false);
+        if (voiceEnabled) speak(response.content);
+        return;
+      }
+
+      if (intent.type === 'create_stellar') {
+        try {
+          const res = await fetch('/api/stellar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create' }),
+          });
+          const data = await res.json();
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: `Your Stellar wallet has been created!\n\nPublic Key: ${data.publicKey}\nSecret Key: ${data.secret}\n\nSave your secret key in a safe place.`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) speak('Your Stellar wallet has been created.');
+        } catch (error) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'Failed to create Stellar wallet. Please try again.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+        }
+        return;
+      }
+
+      if (intent.type === 'check_stellar') {
+        try {
+          const res = await fetch('/api/stellar?account=check');
+          const data = await res.json();
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: data.error
+              ? data.error
+              : `Stellar balances: ${data.balances?.join(', ') || '0 XLM'}`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) speak(response.content);
+        } catch (error) {
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: 'Failed to check Stellar balance. Please try again.',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+        }
+        return;
+      }
+
       if (intent.type === 'send_money' && intent.data) {
         const { amount, recipient } = intent.data;
         const foundRecipient = findRecipient(recipient!);
@@ -805,7 +1183,45 @@ export default function Home() {
         return;
       }
       
-      const responses = [
+      try {
+        const walletRes = await fetch('/api/wallet');
+        const walletData = await walletRes.json();
+        const balance = walletData.balance ?? 0;
+        const recentTransactions = walletData.transactions?.slice(0, 3) || [];
+        
+        const aiRes = await fetch('/backend/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: content,
+            context: {
+              balance,
+              recipients,
+              recentTransactions,
+            },
+          }),
+        });
+        
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          const response: Message = {
+            id: generateId(),
+            role: 'ai',
+            content: aiData.reply || "I'm here to help with cross-border payments. Would you like to send money, convert currency, check your balance, or view transactions?",
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, response]);
+          setIsTyping(false);
+          if (voiceEnabled) {
+            speak(response.content);
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('[AI Chat] Error:', error);
+      }
+      
+      const fallbackResponses = [
         "I can help you send money or convert currencies. Try saying 'Send $50 to John' or 'Convert $100 to Naira'",
         "I understand you want to make a transaction. For sending money, say 'Send $50 to John'. For conversion, say 'Convert $100 to Euro'",
         "I'm here to help with cross-border payments. Would you like to send money or convert currency?",
@@ -814,7 +1230,7 @@ export default function Home() {
       const response: Message = {
         id: generateId(),
         role: 'ai',
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
         timestamp: new Date(),
       };
       
@@ -825,10 +1241,10 @@ export default function Home() {
         speak(response.content);
       }
     }, 800);
-  }, [chatState, pendingTransaction, voiceEnabled, speak, addRecipient, handleConfirmPayment, handleCancelPayment]);
+  }, [chatState, pendingTransaction, voiceEnabled, speak, addRecipient, handleConfirmPayment, handleCancelPayment, recipients, transactions]);
 
-  const handleQuickAction = useCallback((command: string) => {
-    handleSendMessage(command);
+  const handleQuickAction = useCallback(async (command: string) => {
+    await handleSendMessage(command);
   }, [handleSendMessage]);
 
   const handleOpenRecipientModal = () => {
