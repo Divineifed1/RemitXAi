@@ -20,7 +20,7 @@ export interface TransactionRow {
 }
 
 let useInMemory = false;
-let inMemoryWallet = { balance: 500 };
+let inMemoryWallet = { balance: 0 };
 let inMemoryTransactions: TransactionRow[] = [];
 let inMemoryRecipients: { name: string; wallet: string }[] = [
   { name: 'john', wallet: 'GCFX123456789' },

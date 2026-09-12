@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Volume2, VolumeX, Sun, Moon, LayoutDashboard, LogIn, User, LogOut } from 'lucide-react';
+import { Volume2, VolumeX, Sun, Moon, LayoutDashboard, LogIn, User, LogOut, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WalletBalance } from './WalletBalance';
 import { NotificationBell } from './NotificationBell';
@@ -58,7 +58,7 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
 
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0 flex-1 sm:flex-none">
-            <WalletBalance isDarkMode={isDarkMode} showAddress address="GCFX7FJHBM4CYGERTUQJQD5EKQ6CWG6CXKNR6FWKH3VQNR7L3XJSC6OQW" />
+            <WalletBalance isDarkMode={isDarkMode} showAddress address="GBC4URMCFRFIDUXH2C4OQ2Z2SPAJGWBVPAVDCXSZF4FNA7WQRLALVGGJ" />
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -75,6 +75,22 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
                 title="Go to Dashboard"
               >
                 <LayoutDashboard className="w-5 h-5" />
+              </motion.button>
+            </Link>
+
+            <Link href="/recipients">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={cn(
+                  'p-2 rounded-lg transition-colors',
+                  isDarkMode
+                    ? 'hover:bg-white/10 text-slate-400 hover:text-white'
+                    : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
+                )}
+                title="View My Recipients"
+              >
+                <Users className="w-5 h-5" />
               </motion.button>
             </Link>
 

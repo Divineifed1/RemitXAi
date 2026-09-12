@@ -9,13 +9,12 @@ import { ChatContainer } from '@/components/ChatContainer';
 import { ChatInput } from '@/components/ChatInput';
 import { QuickActionButtons } from '@/components/QuickActionButtons';
 import { RecipientModal } from '@/components/RecipientModal';
-import { Toast } from '@/components/Toast';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { useWallet } from '@/context/WalletContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationCenter } from '@/context/NotificationCenterContext';
 import { cn } from '@/lib/utils';
-import type { Message, IntentResult, TransactionData, ConversionData, Recipient, ChatState, ConfirmationData, Alert, Transaction } from '@/types';
+import type { Message, IntentResult, TransactionData, ConversionData, Recipient, ChatState, ConfirmationData, Transaction } from '@/types';
 
 const DEFAULT_RECIPIENTS: Recipient[] = [
   { id: '1', name: 'John', walletAddress: 'GCFX1827394710' },
@@ -23,8 +22,6 @@ const DEFAULT_RECIPIENTS: Recipient[] = [
   { id: '3', name: 'Sarah', walletAddress: 'GCFX4738291028' },
   { id: '4', name: 'David', walletAddress: 'GCFX9283746510' },
 ];
-
-const SAMPLE_SENDERS = ['Sarah', 'John', 'David', 'Divine', 'Michael'];
 
 function generateId() {
   return Math.random().toString(36).substring(2, 11);
@@ -178,7 +175,6 @@ export default function Home() {
   } | null>(null);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [modalDefaults, setModalDefaults] = useState({ name: '', wallet: '' });
-  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
@@ -188,7 +184,6 @@ export default function Home() {
   const { speak } = useSpeechSynthesis(voiceEnabled);
   const { sendPayment: sendPaymentToBackend, addFunds, refreshBalance } = useWallet();
   const { addNotification } = useNotificationCenter();
-  const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
@@ -256,44 +251,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    alertIntervalRef.current = setInterval(async () => {
-      if (Math.random() > 0.7) {
-        const sender = SAMPLE_SENDERS[Math.floor(Math.random() * SAMPLE_SENDERS.length)];
-        const amount = Math.floor(Math.random() * 100) + 10;
-        
-        try {
-          await addFunds(amount, `Received from ${sender}`);
-        } catch (error) {
-          console.error('Failed to add incoming funds:', error);
-        }
-        
-        const newAlert: Alert = {
-          id: generateId(),
-          type: 'incoming',
-          title: 'Incoming Payment',
-          message: `You received $${amount} from ${sender}`,
-          timestamp: new Date(),
-          read: false,
-        };
-        
-          setAlerts(prev => [...prev, newAlert]);
-          
-          await addNotification({
-            title: 'Incoming Payment',
-            message: `You received $${amount} from ${sender}`,
-            type: 'incoming',
-          });
-        }
-    }, 120000);
-    
-    return () => {
-      if (alertIntervalRef.current) {
-        clearInterval(alertIntervalRef.current);
-      }
-    };
-  }, [addFunds, addNotification]);
-
-  useEffect(() => {
     const synth = window.speechSynthesis;
     if (synth) {
       synth.cancel();
@@ -302,12 +259,6 @@ export default function Home() {
       utterance.rate = 0.9;
       setTimeout(() => synth.speak(utterance), 500);
     }
-  }, []);
-
-  const dismissAlert = useCallback((id: string) => {
-    setAlerts(prev => prev.map(alert => 
-      alert.id === id ? { ...alert, read: true } : alert
-    ));
   }, []);
 
   const findRecipient = (name: string) => {
@@ -351,7 +302,7 @@ export default function Home() {
     setVoiceEnabled(prev => !prev);
   }, []);
 
-  const triggerInsight = useCallback((type: 'rate' | 'frequent', message: string) => {
+  const triggerInsight = useCallback((type: 'frequent', message: string) => {
     const insightMessage: Message = {
       id: generateId(),
       role: 'ai',
@@ -360,20 +311,9 @@ export default function Home() {
       type: 'insight',
     };
     
-    setMessages(prev => [...prev, insightMessage]);
-    
-    const insightAlert: Alert = {
-      id: generateId(),
-      type: 'insight',
-      title: 'AI Insight',
-      message: message,
-      timestamp: new Date(),
-      read: false,
-    };
-    
-    setAlerts(prev => [...prev, insightAlert]);
-    
-    if (voiceEnabled) {
+     setMessages(prev => [...prev, insightMessage]);
+     
+     if (voiceEnabled) {
       speak(message);
     }
   }, [voiceEnabled, speak]);
@@ -777,11 +717,17 @@ export default function Home() {
       const intent = await parseIntent(content);
       
       if (intent.type === 'check_balance') {
-        const balance = await fetch('/api/wallet').then(res => res.json()).catch(() => ({ balance: 'unavailable' }));
+        const walletData = await fetch('/api/wallet').then(res => res.json()).catch(() => ({ xlmBalance: null, usdcBalance: null }));
+        const xlmDisplay = walletData.xlmBalance && Number(walletData.xlmBalance) > 0
+          ? ` ${Number(parseFloat(walletData.xlmBalance).toFixed(2)).toLocaleString()} XLM`
+          : '';
+        const usdcDisplay = walletData.usdcBalance && Number(parseFloat(walletData.usdcBalance)) > 0
+          ? ` ${Number(parseFloat(walletData.usdcBalance).toFixed(2)).toLocaleString()} USDC`
+          : '';
         const response: Message = {
           id: generateId(),
           role: 'ai',
-          content: `Your current balance is $${balance.balance ?? 'unavailable'}.`,
+          content: `Your current balance is${usdcDisplay}${xlmDisplay}.`,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, response]);
@@ -1320,8 +1266,6 @@ export default function Home() {
           </motion.div>
         </main>
       </div>
-
-      <Toast alerts={alerts} onDismiss={dismissAlert} isDarkMode={isDarkMode} />
 
       <RecipientModal
         isOpen={showRecipientModal}

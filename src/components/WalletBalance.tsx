@@ -12,8 +12,8 @@ interface WalletBalanceProps {
   address?: string;
 }
 
-export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress = false, address = 'GCFX7FJHBM4CYGERTUQJQD5EKQ6CWG6CXKNR6FWKH3VQNR7L3XJSC6OQW' }: WalletBalanceProps) {
-  const { balance, isLoading } = useWallet();
+export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress = false, address = 'GBC4URMCFRFIDUXH2C4OQ2Z2SPAJGWBVPAVDCXSZF4FNA7WQRLALVGGJ' }: WalletBalanceProps) {
+  const { balance, xlmBalance, usdcBalance, isLoading } = useWallet();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -22,7 +22,7 @@ export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shortAddress = address.length > 12 
+  const shortAddress = address.length > 12
     ? `${address.slice(0, 8)}...${address.slice(-4)}`
     : address;
 
@@ -36,7 +36,7 @@ export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress
           : 'bg-gradient-to-r from-[#234A80] to-[#9B7EE9]'
       )}
       onClick={handleCopy}
-      title="Click to copy"
+      title={showAddress ? "Click to copy address" : "Click to copy"}
     >
       {showAddress ? (
         <>
@@ -57,7 +57,17 @@ export function WalletBalance({ isDarkMode = true, showLabel = true, showAddress
             {isLoading ? (
               <span className="animate-pulse">...</span>
             ) : (
-              <span>${balance.toLocaleString()}</span>
+              <span>
+                {usdcBalance && Number(parseFloat(usdcBalance)) > 0
+                  ? `${Number(parseFloat(usdcBalance).toFixed(2)).toLocaleString()} USDC`
+                  : '0 USDC'}
+                {(xlmBalance && Number(xlmBalance) > 0) && (
+                  <span className="text-xs ml-1 opacity-80">
+                    {' '}
+                    ({Number(parseFloat(xlmBalance).toFixed(2)).toLocaleString()} XLM)
+                  </span>
+                )}
+              </span>
             )}
           </span>
         </>

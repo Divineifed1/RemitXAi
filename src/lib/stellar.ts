@@ -102,6 +102,43 @@ export async function getTransactionHistory(accountId: string, limit = 20): Prom
   }
 }
 
+export async function getAccountOperations(accountId: string, limit = 20): Promise<any[]> {
+  try {
+    const operations = await server
+      .operations()
+      .forAccount(accountId)
+      .limit(limit)
+      .order('desc')
+      .call();
+
+    return operations.records
+      .filter((op: any) => op.type === 'payment' || op.type === 'path_payment_strict_receive' || op.type === 'path_payment_strict_send')
+      .map((op: any) => {
+        const amount = parseFloat(op.amount || '0');
+        const assetCode = op.asset_code || 'XLM';
+        const from = op.from;
+        const to = op.to;
+        const isOutgoing = from === accountId;
+        const isIncoming = to === accountId;
+
+        return {
+          id: op.id,
+          hash: op.transaction_hash,
+          type: op.type,
+          from,
+          to,
+          amount,
+          asset_code: assetCode,
+          direction: isOutgoing ? 'debit' : isIncoming ? 'credit' : 'unknown',
+          created_at: op.created_at,
+        };
+      });
+  } catch (error) {
+    console.error('Error getting account operations:', error);
+    return [];
+  }
+}
+
 export async function sendPayment(
   sourceSecret: string,
   destinationAccountId: string,

@@ -13,9 +13,7 @@ import type { Transaction } from '@/types';
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const { balance, isLoading: walletLoading, refreshBalance, transactions: walletTxns } = useWallet();
-  const [totalReceived, setTotalReceived] = useState(0);
-  const [totalSent, setTotalSent] = useState(0);
+  const { xlmBalance, usdcBalance, isLoading: walletLoading, refreshBalance, transactions: walletTxns } = useWallet();
   const [isLoading, setIsLoading] = useState(true);
 
   // Format transactions from wallet context
@@ -23,7 +21,7 @@ export default function Dashboard() {
     id: String(t.id),
     name: t.description,
     amount: t.amount,
-    currency: '$',
+    currency: t.currency || '$',
     status: t.type === 'credit' ? 'received' : 'sent',
     type: t.type === 'credit' ? 'received' : 'sent',
     timestamp: t.timestamp,
@@ -48,17 +46,12 @@ export default function Dashboard() {
     }
   }, [refreshBalance]);
 
-  // Calculate totals from wallet transactions (separate effect)
-  useEffect(() => {
-    const received = walletTxns
-      .filter(t => t.type === 'credit')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const sent = walletTxns
-      .filter(t => t.type === 'debit')
-      .reduce((sum, t) => sum + t.amount, 0);
-    setTotalReceived(received);
-    setTotalSent(sent);
-  }, [walletTxns]);
+  const totalReceivedXLM = walletTxns
+    .filter(t => t.type === 'credit')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalSentXLM = walletTxns
+    .filter(t => t.type === 'debit')
+    .reduce((sum, t) => sum + t.amount, 0);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('remitx-dark-mode');
@@ -165,7 +158,7 @@ export default function Dashboard() {
                     'text-sm',
                     isDarkMode ? 'text-slate-400' : 'text-slate-500'
                   )}>
-                    Total Balance
+                    USDC Balance
                   </p>
                   <h2 className={cn(
                     'text-3xl font-bold',
@@ -174,9 +167,27 @@ export default function Dashboard() {
                     {walletLoading || isLoading ? (
                       <span className="animate-pulse">...</span>
                     ) : (
-                      `$${balance.toFixed(2)}`
+                      usdcBalance ? `${Number(parseFloat(usdcBalance).toFixed(2)).toLocaleString()} USDC` : '0 USDC'
                     )}
                   </h2>
+                </div>
+                <div className="ml-4 text-right">
+                  <p className={cn(
+                    'text-sm',
+                    isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                  )}>
+                    XLM Balance
+                  </p>
+                  <h3 className={cn(
+                    'text-xl font-bold tabular-nums',
+                    isDarkMode ? 'text-white' : 'text-slate-900'
+                  )}>
+                    {walletLoading || isLoading ? (
+                      <span className="animate-pulse">...</span>
+                    ) : (
+                      xlmBalance ? `${Number(xlmBalance).toLocaleString()} XLM` : 'N/A'
+                    )}
+                  </h3>
                 </div>
                 <button
                   onClick={fetchData}
@@ -205,7 +216,7 @@ export default function Dashboard() {
                     'text-lg font-semibold',
                     isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
                   )}>
-                    +${totalReceived.toFixed(2)}
+                    +{totalReceivedXLM.toFixed(2)} XLM
                   </p>
                 </div>
                 <div className={cn(
@@ -222,7 +233,7 @@ export default function Dashboard() {
                     'text-lg font-semibold',
                     isDarkMode ? 'text-red-400' : 'text-red-600'
                   )}>
-                    -${totalSent.toFixed(2)}
+                    -{totalSentXLM.toFixed(2)} XLM
                   </p>
                 </div>
               </div>

@@ -57,7 +57,7 @@ create index if not exists idx_notifications_created_at on public.notifications(
 create index if not exists idx_notifications_status on public.notifications(status);
 
 insert into public.wallet (id, balance)
-values (1, 500)
+values (1, 0)
 on conflict (id) do nothing;
 
 insert into public.recipients (name, wallet)

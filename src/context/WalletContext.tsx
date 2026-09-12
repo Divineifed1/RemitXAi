@@ -6,12 +6,15 @@ interface WalletTransaction {
   id: string;
   type: 'credit' | 'debit';
   amount: number;
+  currency: string;
   description: string;
   timestamp: Date;
 }
 
 interface WalletContextType {
   balance: number;
+  xlmBalance: string | null;
+  usdcBalance: string | null;
   transactions: WalletTransaction[];
   isLoading: boolean;
   refreshBalance: () => Promise<void>;
@@ -23,6 +26,8 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<number>(0);
+  const [xlmBalance, setXlmBalance] = useState<string | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -34,15 +39,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
       const response = await fetch('/api/wallet');
       const data = await response.json();
-      console.log('[WalletContext] fetchWallet result:', data.balance);
+      console.log('[WalletContext] fetchWallet result:', data.balance, data.xlmBalance, data.usdcBalance);
       setBalance(data.balance);
+      setXlmBalance(data.xlmBalance ?? null);
+      setUsdcBalance(data.usdcBalance ?? null);
       if (data.transactions) {
         setTransactions(data.transactions.map((t: any) => ({
-          id: String(t.id || t.recipient),
-          type: t.type === 'receive' ? 'credit' : 'debit',
+          id: String(t.id || t.recipient || t.hash),
+          type: t.type === 'receive' || t.type === 'credit' ? 'credit' : 'debit',
           amount: t.amount,
-          description: t.recipient,
-          timestamp: new Date(t.created_at || t.timestamp || Date.now()),
+          currency: t.currency || 'XLM',
+          description: t.description || t.recipient || '',
+          timestamp: new Date(t.timestamp || t.created_at || Date.now()),
         })));
       }
       setHasLoaded(true);
@@ -109,6 +117,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider
       value={{
         balance,
+        xlmBalance,
+        usdcBalance,
         transactions,
         isLoading,
         refreshBalance,
