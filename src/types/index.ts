@@ -76,13 +76,6 @@ export interface Transaction {
   timestamp: Date;
 }
 
-export interface ExchangeRate {
-  from: string;
-  to: string;
-  rate: number;
-  symbol: string;
-}
-
 export interface WalletData {
   balance: number;
   currency: string;
@@ -95,6 +88,20 @@ export interface Alert {
   message: string;
   timestamp: Date;
   read: boolean;
+}
+
+export type NotificationType = 'incoming' | 'insight' | 'warning' | 'transaction' | 'conversion';
+export type NotificationStatus = 'unread' | 'read';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+  actionUrl?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Insight {

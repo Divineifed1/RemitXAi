@@ -3,9 +3,11 @@
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Volume2, VolumeX, Sun, Moon, LayoutDashboard } from 'lucide-react';
+import { Volume2, VolumeX, Sun, Moon, LayoutDashboard, LogIn, User, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WalletBalance } from './WalletBalance';
+import { NotificationBell } from './NotificationBell';
+import { useAuth } from '@/context/AuthContext';
 
 interface HeaderProps {
   isDarkMode: boolean;
@@ -15,6 +17,11 @@ interface HeaderProps {
 }
 
 export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoice }: HeaderProps) {
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}
@@ -61,8 +68,8 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
                 whileTap={{ scale: 0.95 }}
                 className={cn(
                   'p-2 rounded-lg transition-colors',
-                  isDarkMode 
-                    ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
+                  isDarkMode
+                    ? 'hover:bg-white/10 text-slate-400 hover:text-white'
                     : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
                 )}
                 title="Go to Dashboard"
@@ -70,6 +77,8 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
                 <LayoutDashboard className="w-5 h-5" />
               </motion.button>
             </Link>
+
+            <NotificationBell isDarkMode={isDarkMode} />
 
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -93,19 +102,19 @@ export function Header({ isDarkMode, onToggleTheme, isVoiceEnabled, onToggleVoic
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={onToggleTheme}
+              onClick={handleSignOut}
               className={cn(
                 'p-2 rounded-lg transition-colors',
                 isDarkMode 
                   ? 'hover:bg-white/10 text-slate-400 hover:text-white' 
                   : 'hover:bg-[#BCC3EE]/30 text-slate-500 hover:text-[#234A80]'
               )}
-              title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={user ? 'Sign out' : 'Sign in'}
             >
-              {isDarkMode ? (
-                <Sun className="w-5 h-5" />
+              {user ? (
+                <LogOut className="w-5 h-5" />
               ) : (
-                <Moon className="w-5 h-5" />
+                <LogIn className="w-5 h-5" />
               )}
             </motion.button>
           </div>

@@ -1,13 +1,21 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    'HTTP-Referer': 'https://remitx-ai.com',
-    'X-Title': 'RemitX AI',
-  },
-});
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+    defaultHeaders: {
+      'HTTP-Referer': 'https://remitx-ai.com',
+      'X-Title': 'RemitX AI',
+    },
+  });
+}
 
 export interface ParsedIntent {
   action: string | null;
@@ -23,7 +31,9 @@ export interface ParsedIntent {
 }
 
 export async function parseMessage(message: string): Promise<ParsedIntent> {
-  if (!process.env.OPENAI_API_KEY) {
+  const openai = getOpenAIClient();
+
+  if (!openai) {
     console.warn('OpenAI API key not configured, falling back to regex parsing');
     return fallbackParse(message);
   }

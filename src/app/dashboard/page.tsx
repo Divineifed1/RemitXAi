@@ -4,29 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Wallet, ArrowUpRight, ArrowDownLeft, TrendingUp, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, ArrowRight } from 'lucide-react';
 import { Header } from '@/components/Header';
-import { WalletBalance } from '@/components/WalletBalance';
 import { useWallet } from '@/context/WalletContext';
 import { cn } from '@/lib/utils';
-import type { Transaction, ExchangeRate } from '@/types';
-
-const DISPLAY_RATES = [
-  { from: 'USD', to: 'NGN', symbol: '₦' },
-  { from: 'EUR', to: 'NGN', symbol: '₦' },
-  { from: 'GBP', to: 'NGN', symbol: '₦' },
-  { from: 'XLM', to: 'NGN', symbol: '₦' },
-  { from: 'USD', to: 'XLM', symbol: 'XLM' },
-];
-
-interface DbTransaction {
-  id: number;
-  recipient: string;
-  amount: number;
-  type: 'send' | 'receive';
-  created_at: string;
-  timestamp?: string;
-}
+import type { Transaction } from '@/types';
 
 export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -34,7 +16,6 @@ export default function Dashboard() {
   const { balance, isLoading: walletLoading, refreshBalance, transactions: walletTxns } = useWallet();
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalSent, setTotalSent] = useState(0);
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   // Format transactions from wallet context
@@ -47,18 +28,6 @@ export default function Dashboard() {
     type: t.type === 'credit' ? 'received' : 'sent',
     timestamp: t.timestamp,
   }));
-
-  const fetchRates = useCallback(async () => {
-    try {
-      const res = await fetch('/api/rates');
-      const data = await res.json();
-      if (data.rates) {
-        setExchangeRates(data.rates);
-      }
-    } catch (error) {
-      console.error('Failed to fetch rates:', error);
-    }
-  }, []);
 
   const toggleTheme = useCallback(() => {
     setIsDarkMode(prev => !prev);
@@ -98,13 +67,9 @@ export default function Dashboard() {
     }
 
     fetchData();
-    fetchRates();
     
-    const ratesInterval = setInterval(fetchRates, 60000);
-    return () => {
-      clearInterval(ratesInterval);
-    };
-  }, [fetchData, fetchRates]);
+    return () => {};
+  }, [fetchData]);
 
   const formatTime = (date: Date) => {
     const now = new Date();
@@ -260,56 +225,6 @@ export default function Dashboard() {
                     -${totalSent.toFixed(2)}
                   </p>
                 </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className={cn(
-                'col-span-1 md:col-span-2 p-6 rounded-2xl border backdrop-blur-xl',
-                isDarkMode
-                  ? 'bg-[#0B1220]/40 border-white/10'
-                  : 'bg-white/80 border-[#BCC3EE]/30'
-              )}
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-[#9B7EE9]" />
-                <h3 className={cn(
-                  'text-lg font-semibold',
-                  isDarkMode ? 'text-white' : 'text-slate-900'
-                )}>
-                  Exchange Rates
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {DISPLAY_RATES.map((rate, index) => {
-                  const apiRate = exchangeRates[rate.to] || 1;
-                  return (
-                    <motion.div
-                      key={index}
-                      whileHover={{ scale: 1.02 }}
-                      className={cn(
-                        'p-4 rounded-xl text-center',
-                        isDarkMode ? 'bg-white/5' : 'bg-slate-50'
-                      )}
-                    >
-                      <p className={cn(
-                        'text-xs font-medium mb-1',
-                        isDarkMode ? 'text-slate-400' : 'text-slate-500'
-                      )}>
-                        {rate.from} → {rate.to}
-                      </p>
-                      <p className={cn(
-                        'text-lg font-bold',
-                        isDarkMode ? 'text-white' : 'text-slate-900'
-                      )}>
-                        {rate.symbol}{apiRate.toLocaleString()}
-                      </p>
-                    </motion.div>
-                  );
-                })}
               </div>
             </motion.div>
 

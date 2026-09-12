@@ -12,6 +12,9 @@ import { RecipientModal } from '@/components/RecipientModal';
 import { Toast } from '@/components/Toast';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { useWallet } from '@/context/WalletContext';
+import { useAuth } from '@/context/AuthContext';
+import { useNotificationCenter } from '@/context/NotificationCenterContext';
+import { cn } from '@/lib/utils';
 import type { Message, IntentResult, TransactionData, ConversionData, Recipient, ChatState, ConfirmationData, Alert, Transaction } from '@/types';
 
 const DEFAULT_RECIPIENTS: Recipient[] = [
@@ -151,6 +154,15 @@ function shortenWallet(address: string): string {
   return address;
 }
 
+const EXCHANGE_RATES: Record<string, number> = {
+  USD: 1,
+  NGN: 1400,
+  EUR: 0.92,
+  GBP: 0.79,
+  JPY: 148.5,
+  XLM: 0.0035,
+};
+
 export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -167,15 +179,15 @@ export default function Home() {
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [modalDefaults, setModalDefaults] = useState({ name: '', wallet: '' });
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
-  const [isRatesLoading, setIsRatesLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipientUsageCount, setRecipientUsageCount] = useState<Record<string, number>>({});
   const [insightTriggered, setInsightTriggered] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<{ id: number; bank_name: string; account_number: string; account_name: string; is_default: boolean }[]>([]);
   const [pendingOfframp, setPendingOfframp] = useState<{ amount?: number; bankName?: string; accountNumber?: string; accountName?: string } | null>(null);
+  const { user, loading: authLoading, signOut } = useAuth();
   const { speak } = useSpeechSynthesis(voiceEnabled);
   const { sendPayment: sendPaymentToBackend, addFunds, refreshBalance } = useWallet();
+  const { addNotification } = useNotificationCenter();
   const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -244,49 +256,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetchRates = async () => {
-      try {
-        const res = await fetch('/api/rates');
-        const data = await res.json();
-        if (data.rates) {
-          setExchangeRates(data.rates);
-        }
-      } catch (error) {
-        console.error('Failed to fetch rates:', error);
-      } finally {
-        setIsRatesLoading(false);
-      }
-    };
-
-    fetchRates();
-    const interval = setInterval(fetchRates, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const checkRateInsight = () => {
-      const currentNgnRate = exchangeRates['NGN'];
-      if (!currentNgnRate) return;
-      
-      const message = `The current naira rate is ${currentNgnRate} naira per dollar. This might be a good time to convert.`;
-      const insightMessage: Message = {
-        id: generateId(),
-        role: 'ai',
-        content: message,
-        timestamp: new Date(),
-        type: 'insight',
-      };
-      setMessages(prev => [...prev, insightMessage]);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
-      }
-    };
-    
-    const rateInsightInterval = setInterval(checkRateInsight, 210000);
-    return () => clearInterval(rateInsightInterval);
-  }, [exchangeRates]);
-
-  useEffect(() => {
     alertIntervalRef.current = setInterval(async () => {
       if (Math.random() > 0.7) {
         const sender = SAMPLE_SENDERS[Math.floor(Math.random() * SAMPLE_SENDERS.length)];
@@ -307,8 +276,14 @@ export default function Home() {
           read: false,
         };
         
-        setAlerts(prev => [...prev, newAlert]);
-      }
+          setAlerts(prev => [...prev, newAlert]);
+          
+          await addNotification({
+            title: 'Incoming Payment',
+            message: `You received $${amount} from ${sender}`,
+            type: 'incoming',
+          });
+        }
     }, 120000);
     
     return () => {
@@ -316,7 +291,7 @@ export default function Home() {
         clearInterval(alertIntervalRef.current);
       }
     };
-  }, [addFunds]);
+  }, [addFunds, addNotification]);
 
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -433,7 +408,7 @@ export default function Home() {
           return;
         }
 
-        const ngnRate = exchangeRates['NGN'] || 1400;
+        const ngnRate = EXCHANGE_RATES['NGN'];
         const nairaAmount = Math.round(pendingOfframp.amount * ngnRate);
 
         const offrampRes = await fetch('/backend/offramp', {
@@ -466,6 +441,14 @@ export default function Home() {
           };
 
           setMessages(prev => [...prev, response]);
+
+          await addNotification({
+            title: 'Off-ramp Initiated',
+            message: `$${pendingOfframp.amount} → ₦${nairaAmount.toLocaleString()} sent to ${pendingOfframp.bankName || 'bank'}. Reference: ${offrampData.transaction?.reference}`,
+            type: 'transaction',
+            actionUrl: '/dashboard',
+          });
+
           setPendingTransaction(null);
           setPendingOfframp(null);
           setChatState('idle');
@@ -565,6 +548,12 @@ export default function Home() {
 
           setMessages(prev => [...prev, response]);
 
+          await addNotification({
+            title: 'Payment Sent',
+            message: `Successfully sent $${amount} to ${recipientName}`,
+            type: 'transaction',
+          });
+
           const newTransaction: Transaction = {
             id: generateId(),
             name: recipientName,
@@ -619,7 +608,7 @@ export default function Home() {
       setPendingOfframp(null);
       setChatState('idle');
     }
-  }, [pendingTransaction, pendingOfframp, bankAccounts, exchangeRates, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight, sendPaymentToBackend, refreshBalance]);
+  }, [pendingTransaction, pendingOfframp, bankAccounts, voiceEnabled, speak, recipientUsageCount, insightTriggered, triggerInsight, sendPaymentToBackend, refreshBalance, addNotification]);
 
   const handleCancelPayment = useCallback(() => {
     if (!pendingTransaction) return;
@@ -879,7 +868,7 @@ export default function Home() {
           return;
         }
 
-        const ngnRate = exchangeRates['NGN'] || 1400;
+        const ngnRate = EXCHANGE_RATES['NGN'];
         const nairaAmount = Math.round(amount * ngnRate);
 
         setPendingOfframp({
@@ -1095,8 +1084,8 @@ export default function Home() {
           return;
         }
         
-        const fromRate = exchangeRates[from] || 1;
-        const toRate = exchangeRates[to] || 1;
+        const fromRate = EXCHANGE_RATES[from] || 1;
+        const toRate = EXCHANGE_RATES[to] || 1;
         const rate = toRate / fromRate;
         
         const toAmount = (amount || 100) * rate;
@@ -1157,28 +1146,6 @@ export default function Home() {
         
         if (voiceEnabled) {
           speak(response.content);
-        }
-        return;
-      }
-      
-      if (lowerContent === 'check rates' || lowerContent === 'show rates' || lowerContent === 'exchange rates') {
-        const ngnRate = exchangeRates['NGN'] || 1400;
-        const eurRate = exchangeRates['EUR'] || 0.92;
-        const gbpRate = exchangeRates['GBP'] || 0.79;
-        const xlmRate = exchangeRates['XLM'] || 0.0035;
-        
-        const response: Message = {
-          id: generateId(),
-          role: 'ai',
-          content: `Current exchange rates:\n\n💵 USD → NGN: ₦${ngnRate.toLocaleString()}\n💶 EUR → NGN: ₦${Math.round(ngnRate / eurRate).toLocaleString()}\n💷 GBP → NGN: ₦${Math.round(ngnRate / gbpRate).toLocaleString()}\n⭐ XLM → NGN: ₦${Math.round(ngnRate * xlmRate).toLocaleString()}\n\nWould you like to convert any currency?`,
-          timestamp: new Date(),
-        };
-        
-        setMessages(prev => [...prev, response]);
-        setIsTyping(false);
-        
-        if (voiceEnabled) {
-          speak('Here are the current exchange rates');
         }
         return;
       }
@@ -1285,6 +1252,38 @@ export default function Home() {
         />
 
         <main className="relative z-10 pt-36 pb-6 px-3 sm:px-4 max-w-2xl mx-auto min-h-screen flex flex-col sm:pt-24">
+          {!user && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-2xl border backdrop-blur-xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(155, 126, 233, 0.15), rgba(99, 102, 241, 0.15))',
+                borderColor: 'rgba(155, 126, 233, 0.3)',
+              }}
+            >
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className={cn('font-semibold text-white mb-1', isDarkMode ? 'text-white' : 'text-slate-900')}>
+                    Sign in to access your wallet
+                  </h3>
+                  <p className={cn('text-sm', isDarkMode ? 'text-slate-400' : 'text-slate-500')}>
+                    Create an account or sign in to send money, convert currency, and more.
+                  </p>
+                </div>
+                <Link href="/auth" className="flex-shrink-0">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-6 py-3 rounded-xl font-medium text-white gradient-bg whitespace-nowrap"
+                  >
+                    Sign In / Sign Up
+                  </motion.button>
+                </Link>
+              </div>
+            </motion.div>
+          )}
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

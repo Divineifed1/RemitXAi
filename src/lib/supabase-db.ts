@@ -207,6 +207,137 @@ export interface OfframpTransaction {
   created_at: string;
 }
 
+export interface NotificationRow {
+  id: number;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'incoming' | 'insight' | 'warning' | 'transaction';
+  status: 'unread' | 'read';
+  action_url: string | null;
+  created_at: string;
+}
+
+let inMemoryNotifications: NotificationRow[] = [];
+
+export async function getNotifications(userId?: string, limit = 20): Promise<NotificationRow[]> {
+  if (useInMemory || !supabaseAdmin) {
+    let notifs = inMemoryNotifications;
+    if (userId) {
+      notifs = notifs.filter(n => n.user_id === userId);
+    }
+    return notifs
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit);
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data as NotificationRow[];
+}
+
+export async function getUnreadCount(userId?: string): Promise<number> {
+  if (useInMemory || !supabaseAdmin) {
+    let notifs = inMemoryNotifications;
+    if (userId) {
+      notifs = notifs.filter(n => n.user_id === userId);
+    }
+    return notifs.filter(n => n.status === 'unread').length;
+  }
+
+  const { count, error } = await supabaseAdmin
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'unread');
+
+  if (error || count === null) return 0;
+  return count;
+}
+
+export async function markNotificationRead(id: number): Promise<boolean> {
+  if (useInMemory || !supabaseAdmin) {
+    const notif = inMemoryNotifications.find(n => n.id === id);
+    if (notif) {
+      notif.status = 'read';
+    }
+    return true;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('notifications')
+    .update({ status: 'read' })
+    .eq('id', id);
+
+  return !error;
+}
+
+export async function markAllNotificationsRead(userId?: string): Promise<boolean> {
+  if (useInMemory || !supabaseAdmin) {
+    inMemoryNotifications.forEach(n => {
+      n.status = 'read';
+    });
+    return true;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('notifications')
+    .update({ status: 'read' })
+    .eq('status', 'unread');
+
+  return !error;
+}
+
+export async function insertNotification(notification: {
+  userId?: string;
+  title: string;
+  message: string;
+  type: 'incoming' | 'insight' | 'warning' | 'transaction';
+  actionUrl?: string;
+  metadata?: Record<string, any>;
+}): Promise<NotificationRow> {
+  const now = new Date().toISOString();
+  const newRow: NotificationRow = {
+    id: Date.now(),
+    user_id: notification.userId || '00000000-0000-0000-0000-000000000000',
+    title: notification.title,
+    message: notification.message,
+    type: notification.type,
+    status: 'unread',
+    action_url: notification.actionUrl || null,
+    created_at: now,
+  };
+
+  if (useInMemory || !supabaseAdmin) {
+    inMemoryNotifications.push(newRow);
+    return newRow;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .insert({
+      user_id: notification.userId || undefined,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      status: 'unread',
+      action_url: notification.actionUrl || null,
+      metadata: notification.metadata || {},
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to create notification');
+  }
+
+  return data as NotificationRow;
+}
+
 export async function getBankAccounts(): Promise<BankAccount[]> {
   if (useInMemory || !supabaseAdmin) return [];
 
